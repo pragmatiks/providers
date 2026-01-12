@@ -43,3 +43,17 @@ preview = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = ["-v"]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = ["pyproject.toml:^version"]
+tag_format = "v$version"
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.11.0",
+    "pre-commit>=4.0.0",
+]

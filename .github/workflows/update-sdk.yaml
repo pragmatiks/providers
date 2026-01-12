@@ -1,0 +1,57 @@
+name: Update SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_version:
+        description: "New SDK version (e.g., 0.1.0a2)"
+        required: true
+        type: string
+
+jobs:
+  update-sdk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.x"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update SDK version in all providers
+        run: |
+          SDK_VERSION="${{ inputs.sdk_version }}"
+
+          for pyproject in packages/*/pyproject.toml; do
+            echo "Updating $pyproject to SDK v${SDK_VERSION}"
+
+            sed -i "s|pragmatiks-sdk>=.*\"|pragmatiks-sdk>=${SDK_VERSION}\"|" "$pyproject"
+            sed -i "s|tag = \"v.*\"|tag = \"v${SDK_VERSION}\"|" "$pyproject"
+          done
+
+      - name: Update lockfiles
+        run: uv sync --all-groups
+
+      - name: Commit and push
+        run: |
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix(deps): update pragmatiks-sdk to v${{ inputs.sdk_version }}"
+            git push
+          fi
