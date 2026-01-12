@@ -24,10 +24,7 @@ async def test_create_secret_success(
     assert result.success
     assert result.outputs is not None
     assert result.outputs.resource_name == "projects/test-project/secrets/test-secret"
-    assert (
-        result.outputs.version_name
-        == "projects/test-project/secrets/test-secret/versions/1"
-    )
+    assert result.outputs.version_name == "projects/test-project/secrets/test-secret/versions/1"
     assert result.outputs.version_id == "1"
 
     mock_secretmanager_client.create_secret.assert_called_once()
@@ -161,9 +158,7 @@ async def test_delete_success(
     result = await harness.invoke_delete(Secret, name="test", config=config)
 
     assert result.success
-    mock_secretmanager_client.delete_secret.assert_called_once_with(
-        name="projects/proj/secrets/sec"
-    )
+    mock_secretmanager_client.delete_secret.assert_called_once_with(name="projects/proj/secrets/sec")
 
 
 async def test_delete_idempotent(
