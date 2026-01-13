@@ -1,3 +1,14 @@
+## v0.3.0 (2026-01-13)
+
+### Feat
+
+- add PyPI publishing and rename to pragmatiks-gcp-provider
+
+### Fix
+
+- **deps**: update pragmatiks-sdk to v0.2.1
+- **deps**: update pragmatiks-sdk to v0.1.3
+
 ## v0.2.4 (2026-01-12)
 
 ### Fix
