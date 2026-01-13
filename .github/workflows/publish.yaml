@@ -78,5 +78,3 @@ jobs:
       - name: Publish to PyPI
         if: steps.bump.outputs.bumped == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: packages/gcp/dist/
