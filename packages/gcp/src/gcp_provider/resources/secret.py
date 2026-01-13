@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+import json
+from typing import Any, ClassVar
 
 from google.api_core.exceptions import AlreadyExists, NotFound
 from google.cloud import secretmanager
+from google.oauth2 import service_account
 from pragma_sdk import Config, Outputs, Resource
 
 
@@ -16,11 +18,15 @@ class SecretConfig(Config):
         project_id: GCP project ID where the secret will be created.
         secret_id: Identifier for the secret within GCP (must be unique per project).
         data: Secret payload data to store.
+        credentials: GCP service account credentials JSON object or string.
+            Required for multi-tenant SaaS - no ADC fallback.
+            Use a pragma/secret resource with a FieldReference to provide credentials.
     """
 
     project_id: str
     secret_id: str
     data: str
+    credentials: dict[str, Any] | str
 
 
 class SecretOutputs(Outputs):
@@ -40,8 +46,8 @@ class SecretOutputs(Outputs):
 class Secret(Resource[SecretConfig, SecretOutputs]):
     """GCP Secret Manager secret resource.
 
-    Creates and manages secrets in GCP Secret Manager using Workload Identity
-    for authentication (no service account keys required).
+    Creates and manages secrets in GCP Secret Manager using user-provided
+    service account credentials (multi-tenant SaaS pattern).
 
     Lifecycle:
         - on_create: Creates secret and initial version
@@ -53,12 +59,26 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
     resource: ClassVar[str] = "secret"
 
     def _get_client(self) -> secretmanager.SecretManagerServiceClient:
-        """Get Secret Manager client (uses ADC/Workload Identity).
+        """Get Secret Manager client with user-provided credentials.
+
+        Creates a client authenticated with the user's GCP service account
+        credentials rather than using ADC/Workload Identity. This is required
+        for multi-tenant SaaS where each user operates in their own GCP project.
 
         Returns:
-            Configured Secret Manager client.
+            Configured Secret Manager client using user's credentials.
+
+        Raises:
+            ValueError: If credentials format is invalid.
         """
-        return secretmanager.SecretManagerServiceClient()
+        creds_data = self.config.credentials
+
+        # Handle string credentials (JSON encoded)
+        if isinstance(creds_data, str):
+            creds_data = json.loads(creds_data)
+
+        credentials = service_account.Credentials.from_service_account_info(creds_data)
+        return secretmanager.SecretManagerServiceClient(credentials=credentials)
 
     def _secret_path(self) -> str:
         """Build secret resource path.
