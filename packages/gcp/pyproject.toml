@@ -1,5 +1,5 @@
 [project]
-name = "gcp-provider"
+name = "pragmatiks-gcp-provider"
 version = "0.1.0"
 description = "GCP provider for Pragmatiks"
 readme = "README.md"

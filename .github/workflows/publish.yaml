@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +60,7 @@ jobs:
         run: |
           for pkg in packages/*/; do
             echo "Building $pkg"
-            uv build --package $(basename $pkg)-provider || uv build --directory $pkg
+            uv build --package pragmatiks-$(basename $pkg)-provider || uv build --directory $pkg
           done
 
       - name: Create GitHub Release
@@ -67,8 +68,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.bump.outputs.version }}
-          name: pragma-providers v${{ steps.bump.outputs.version }}
+          name: pragmatiks-providers v${{ steps.bump.outputs.version }}
           files: |
             packages/*/dist/*
             dist/*
           generate_release_notes: true
+
+      - name: Publish to PyPI
+        if: steps.bump.outputs.bumped == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/gcp/dist/
