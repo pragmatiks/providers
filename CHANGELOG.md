@@ -1,3 +1,9 @@
+## v0.3.1 (2026-01-13)
+
+### Fix
+
+- add module-name for uv_build to find gcp_provider
+
 ## v0.3.0 (2026-01-13)
 
 ### Feat
