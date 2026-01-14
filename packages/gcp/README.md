@@ -1,45 +1,48 @@
-# gcp Provider
+# GCP Provider
 
-GCP provider for Pragmatiks
+GCP provider for Pragmatiks - manage Google Cloud resources declaratively.
 
-## Resources
+## Available Resources
 
-Define your resources in `src/gcp_provider/resources.py`:
+### Secret (gcp/secret)
+
+Manages secrets in GCP Secret Manager using user-provided service account credentials.
 
 ```python
-from pragma_sdk import Resource, Config, Outputs, Field
-from typing import ClassVar
+from gcp_provider import Secret, SecretConfig
 
-class MyResourceConfig(Config):
-    name: Field[str]
-    size: Field[int] = 10
+# Define a secret
+secret = Secret(
+    name="my-api-key",
+    config=SecretConfig(
+        project_id="my-gcp-project",
+        secret_id="api-key",
+        data="super-secret-value",
+        credentials={"type": "service_account", ...},  # or JSON string
+    ),
+)
+```
 
-class MyResourceOutputs(Outputs):
-    url: str
-    created_at: str
+**Config:**
+- `project_id` - GCP project ID where the secret will be created
+- `secret_id` - Identifier for the secret (must be unique per project)
+- `data` - Secret payload data to store
+- `credentials` - GCP service account credentials (JSON object or string)
 
-class MyResource(Resource[MyResourceConfig, MyResourceOutputs]):
-    provider: ClassVar[str] = "gcp"
-    resource: ClassVar[str] = "my_resource"
+**Outputs:**
+- `resource_name` - Full GCP resource name (`projects/{project}/secrets/{id}`)
+- `version_name` - Full version resource name including version number
+- `version_id` - The version number as a string
 
-    async def on_create(self) -> MyResourceOutputs:
-        # Create the resource
-        return MyResourceOutputs(url="...", created_at="...")
+## Installation
 
-    async def on_update(self, previous_config: MyResourceConfig) -> MyResourceOutputs:
-        # Update the resource
-        return self.outputs
-
-    async def on_delete(self) -> None:
-        # Delete the resource
-        pass
+```bash
+pip install pragmatiks-gcp-provider
 ```
 
 ## Development
 
 ### Testing
-
-Test your resource lifecycle methods with ProviderHarness:
 
 ```bash
 # Install dependencies
@@ -55,17 +58,22 @@ Use `ProviderHarness` to test lifecycle methods:
 
 ```python
 from pragma_sdk.provider import ProviderHarness
-from gcp_provider import ExampleResource, ExampleConfig
+from gcp_provider import Secret, SecretConfig
 
-async def test_create():
+async def test_create_secret():
     harness = ProviderHarness()
     result = await harness.invoke_create(
-        ExampleResource,
-        name="test",
-        config=ExampleConfig(name="my-resource", size=10),
+        Secret,
+        name="test-secret",
+        config=SecretConfig(
+            project_id="test-project",
+            secret_id="my-secret",
+            data="secret-value",
+            credentials=mock_credentials,
+        ),
     )
     assert result.success
-    assert result.outputs.url is not None
+    assert result.outputs.resource_name is not None
 ```
 
 ## Deployment
@@ -74,14 +82,4 @@ Push your provider to Pragmatiks platform:
 
 ```bash
 pragma provider push
-```
-
-The platform handles all runtime infrastructure - you just push your code.
-
-## Updating This Project
-
-This project was created with [Copier](https://copier.readthedocs.io/). To update to the latest template:
-
-```bash
-copier update
 ```
