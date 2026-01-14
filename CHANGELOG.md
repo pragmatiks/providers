@@ -1,3 +1,14 @@
+## v0.4.1 (2026-01-14)
+
+### Fix
+
+- **deps**: update pragmatiks-sdk to v0.5.0
+- **deps**: update pragmatiks-sdk to v0.4.0
+
+### Refactor
+
+- **gcp**: use native async client for Secret Manager
+
 ## v0.4.0 (2026-01-13)
 
 ### Feat
