@@ -30,6 +30,14 @@ package = "gcp_provider"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = ["pyproject.toml:^version"]
+tag_format = "gcp-v$version"
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+
 [tool.ruff]
 line-length = 120
 

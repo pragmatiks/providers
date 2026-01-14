@@ -6,7 +6,43 @@ on:
       - main
 
 jobs:
-  bump-and-release:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      providers: ${{ steps.changes.outputs.providers }}
+      has_changes: ${{ steps.changes.outputs.has_changes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed providers
+        id: changes
+        run: |
+          # Get changed files since last provider tag or last commit
+          # Look for any provider tag (gcp-v*, aws-v*, etc.)
+          LAST_TAG=$(git tag -l "*-v*" --sort=-version:refname | head -1 || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            CHANGED_FILES=$(git diff --name-only "$LAST_TAG"..HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD 2>/dev/null || git ls-files)
+          fi
+
+          # Extract unique provider directories that changed
+          PROVIDERS=$(echo "$CHANGED_FILES" | grep "^packages/" | cut -d/ -f2 | sort -u | tr '\n' ' ')
+
+          if [ -n "$PROVIDERS" ]; then
+            echo "providers=$PROVIDERS" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changed providers: $PROVIDERS"
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No provider changes detected"
+          fi
+
+  bump-and-publish:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -35,46 +71,70 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump version
+      - name: Bump and build changed providers
         id: bump
         run: |
-          if cz bump --yes --changelog 2>&1 | tee bump_output.txt; then
-            echo "bumped=true" >> $GITHUB_OUTPUT
-            NEW_VERSION=$(cz version --project)
-            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          else
-            if grep -q "No commits found" bump_output.txt || grep -q "is not a bump" bump_output.txt; then
-              echo "No version bump needed"
-              echo "bumped=false" >> $GITHUB_OUTPUT
+          BUILT_PACKAGES=""
+          VERSIONS=""
+
+          for provider in ${{ needs.detect-changes.outputs.providers }}; do
+            echo "::group::Processing $provider"
+            cd packages/$provider
+
+            # Try to bump version based on conventional commits
+            if cz bump --yes --changelog 2>&1 | tee bump_output.txt; then
+              VERSION=$(cz version --project)
+              echo "Bumped $provider to v$VERSION"
+              VERSIONS="$VERSIONS $provider:$VERSION"
+
+              # Build the package
+              uv build
+              BUILT_PACKAGES="$BUILT_PACKAGES packages/$provider/dist/*"
             else
-              cat bump_output.txt
-              exit 1
+              if grep -qE "No commits found|is not a bump" bump_output.txt; then
+                echo "No bump needed for $provider"
+              else
+                cat bump_output.txt
+                exit 1
+              fi
             fi
-          fi
 
-      - name: Push changes
-        if: steps.bump.outputs.bumped == 'true'
-        run: git push origin main --tags
-
-      - name: Build all provider packages
-        if: steps.bump.outputs.bumped == 'true'
-        run: |
-          for pkg in packages/*/; do
-            echo "Building $pkg"
-            uv build --package pragmatiks-$(basename $pkg)-provider || uv build --directory $pkg
+            cd ../..
+            echo "::endgroup::"
           done
 
-      - name: Create GitHub Release
-        if: steps.bump.outputs.bumped == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.bump.outputs.version }}
-          name: pragmatiks-providers v${{ steps.bump.outputs.version }}
-          files: |
-            packages/*/dist/*
-            dist/*
-          generate_release_notes: true
+          echo "built_packages=$BUILT_PACKAGES" >> $GITHUB_OUTPUT
+          echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
+
+          if [ -n "$VERSIONS" ]; then
+            echo "has_releases=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_releases=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push version bumps and tags
+        if: steps.bump.outputs.has_releases == 'true'
+        run: |
+          git push origin main --follow-tags
+
+      - name: Create GitHub Releases
+        if: steps.bump.outputs.has_releases == 'true'
+        run: |
+          for entry in ${{ steps.bump.outputs.versions }}; do
+            provider=$(echo $entry | cut -d: -f1)
+            version=$(echo $entry | cut -d: -f2)
+
+            gh release create "${provider}-v${version}" \
+              --title "pragmatiks-${provider}-provider v${version}" \
+              --generate-notes \
+              packages/${provider}/dist/* || echo "Release may already exist"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to PyPI
-        if: steps.bump.outputs.bumped == 'true'
+        if: steps.bump.outputs.has_releases == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/*/dist/
+          skip-existing: true
