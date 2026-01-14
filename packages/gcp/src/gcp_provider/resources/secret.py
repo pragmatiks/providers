@@ -6,7 +6,7 @@ import json
 from typing import Any, ClassVar
 
 from google.api_core.exceptions import AlreadyExists, NotFound
-from google.cloud import secretmanager
+from google.cloud.secretmanager_v1 import SecretManagerServiceAsyncClient
 from google.oauth2 import service_account
 from pragma_sdk import Config, Outputs, Resource
 
@@ -58,27 +58,26 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
     provider: ClassVar[str] = "gcp"
     resource: ClassVar[str] = "secret"
 
-    def _get_client(self) -> secretmanager.SecretManagerServiceClient:
-        """Get Secret Manager client with user-provided credentials.
+    def _get_client(self) -> SecretManagerServiceAsyncClient:
+        """Get Secret Manager async client with user-provided credentials.
 
         Creates a client authenticated with the user's GCP service account
         credentials rather than using ADC/Workload Identity. This is required
         for multi-tenant SaaS where each user operates in their own GCP project.
 
         Returns:
-            Configured Secret Manager client using user's credentials.
+            Configured Secret Manager async client using user's credentials.
 
         Raises:
             ValueError: If credentials format is invalid.
         """
         creds_data = self.config.credentials
 
-        # Handle string credentials (JSON encoded)
         if isinstance(creds_data, str):
             creds_data = json.loads(creds_data)
 
         credentials = service_account.Credentials.from_service_account_info(creds_data)
-        return secretmanager.SecretManagerServiceClient(credentials=credentials)
+        return SecretManagerServiceAsyncClient(credentials=credentials)
 
     def _secret_path(self) -> str:
         """Build secret resource path.
@@ -99,9 +98,8 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         client = self._get_client()
         parent = f"projects/{self.config.project_id}"
 
-        # Try to create secret (idempotent via AlreadyExists handling)
         try:
-            secret = client.create_secret(
+            secret = await client.create_secret(
                 request={
                     "parent": parent,
                     "secret_id": self.config.secret_id,
@@ -109,11 +107,9 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
                 }
             )
         except AlreadyExists:
-            # Secret exists - this is idempotent retry, get existing
-            secret = client.get_secret(name=self._secret_path())
+            secret = await client.get_secret(name=self._secret_path())
 
-        # Add version with payload
-        version = client.add_secret_version(
+        version = await client.add_secret_version(
             request={
                 "parent": secret.name,
                 "payload": {"data": self.config.data.encode("utf-8")},
@@ -146,13 +142,11 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
             msg = "Cannot change secret_id; delete and recreate resource"
             raise ValueError(msg)
 
-        # If data unchanged, return existing outputs (idempotent)
         if previous_config.data == self.config.data and self.outputs is not None:
             return self.outputs
 
-        # Add new version
         client = self._get_client()
-        version = client.add_secret_version(
+        version = await client.add_secret_version(
             request={
                 "parent": self._secret_path(),
                 "payload": {"data": self.config.data.encode("utf-8")},
@@ -173,7 +167,6 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         client = self._get_client()
 
         try:
-            client.delete_secret(name=self._secret_path())
+            await client.delete_secret(name=self._secret_path())
         except NotFound:
-            # Already deleted - idempotent success
             pass

@@ -1,12 +1,15 @@
 """Pytest configuration for gcp provider tests."""
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
 from pragma_sdk.provider import ProviderHarness
 
 
-# Sample GCP service account credentials for testing
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
+
 SAMPLE_CREDENTIALS = {
     "type": "service_account",
     "project_id": "test-project",
@@ -34,32 +37,29 @@ def sample_credentials() -> dict:
 
 
 @pytest.fixture
-def mock_secretmanager_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Mock GCP Secret Manager client with credentials support."""
+def mock_secretmanager_client(mocker: "MockerFixture") -> MagicMock:
+    """Mock GCP Secret Manager async client with credentials support."""
     mock_client = MagicMock()
 
-    # Mock create_secret response
     mock_secret = MagicMock()
     mock_secret.name = "projects/test-project/secrets/test-secret"
-    mock_client.create_secret.return_value = mock_secret
-    mock_client.get_secret.return_value = mock_secret
+    mock_client.create_secret = mocker.AsyncMock(return_value=mock_secret)
+    mock_client.get_secret = mocker.AsyncMock(return_value=mock_secret)
 
-    # Mock add_secret_version response
     mock_version = MagicMock()
     mock_version.name = "projects/test-project/secrets/test-secret/versions/1"
-    mock_client.add_secret_version.return_value = mock_version
+    mock_client.add_secret_version = mocker.AsyncMock(return_value=mock_version)
+    mock_client.delete_secret = mocker.AsyncMock()
 
-    # Patch the client constructor to accept credentials arg
-    monkeypatch.setattr(
-        "gcp_provider.resources.secret.secretmanager.SecretManagerServiceClient",
-        lambda credentials=None: mock_client,
+    mocker.patch(
+        "gcp_provider.resources.secret.SecretManagerServiceAsyncClient",
+        return_value=mock_client,
     )
 
-    # Mock credentials creation (we don't need real credentials in tests)
     mock_credentials = MagicMock()
-    monkeypatch.setattr(
+    mocker.patch(
         "gcp_provider.resources.secret.service_account.Credentials.from_service_account_info",
-        lambda info: mock_credentials,
+        return_value=mock_credentials,
     )
 
     return mock_client
