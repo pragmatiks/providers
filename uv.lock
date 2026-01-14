@@ -565,7 +565,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "google-cloud-secret-manager", specifier = ">=2.20.0" },
-    { name = "pragmatiks-sdk", specifier = ">=0.4.0" },
+    { name = "pragmatiks-sdk", specifier = ">=0.5.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -578,16 +578,16 @@ dev = [
 
 [[package]]
 name = "pragmatiks-sdk"
-version = "0.4.0"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/ee/dbbae549847ec04adb2e2685f69da618c300dcba1c8fd9a2c90fe4519d65/pragmatiks_sdk-0.4.0.tar.gz", hash = "sha256:8639dd5ca57f07e2d5b3a3ac51aa2e888ebd57037c0e030c48895fd1190995ca", size = 13970 }
+sdist = { url = "https://files.pythonhosted.org/packages/18/21/e0f49ad193dc46c357266e8f3fe5ba0b215ffc73384aa3b2b7ab03dd0826/pragmatiks_sdk-0.5.0.tar.gz", hash = "sha256:713e094f6f48ef62f9dbbee2a5d6e5a531731c30d6944b4e3f35f277d8ea2bba", size = 13987 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/ce/e8db6347ef5ab58f581213bba61baea7fea30990031a7d67f8f741237568/pragmatiks_sdk-0.4.0-py3-none-any.whl", hash = "sha256:55bfcf23f150d130076dc348a68fc88103bd17d9a88a58ffcedcce7f791ffd05", size = 18157 },
+    { url = "https://files.pythonhosted.org/packages/ca/e6/5cf3014fdfd537ff0ab03e14deb84e68d14fcb8d4220a2a6acbbbceebe21/pragmatiks_sdk-0.5.0-py3-none-any.whl", hash = "sha256:67c118425883841584282c62a228e6c88ac785e4fa348baa442a64e42f16722a", size = 18176 },
 ]
 
 [[package]]
