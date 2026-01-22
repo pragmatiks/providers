@@ -69,30 +69,29 @@ class Messages(Resource[MessagesConfig, MessagesOutputs]):
 
     async def _call_api(self) -> MessagesOutputs:
         """Call the Messages API and return outputs."""
-        client = self._get_client()
+        async with self._get_client() as client:
+            kwargs: dict[str, Any] = {
+                "model": self.config.model,
+                "messages": self.config.messages,
+                "max_tokens": self.config.max_tokens,
+            }
 
-        kwargs: dict[str, Any] = {
-            "model": self.config.model,
-            "messages": self.config.messages,
-            "max_tokens": self.config.max_tokens,
-        }
+            if self.config.system is not None:
+                kwargs["system"] = self.config.system
 
-        if self.config.system is not None:
-            kwargs["system"] = self.config.system
+            if self.config.temperature is not None:
+                kwargs["temperature"] = self.config.temperature
 
-        if self.config.temperature is not None:
-            kwargs["temperature"] = self.config.temperature
+            response = await client.messages.create(**kwargs)
 
-        response = await client.messages.create(**kwargs)
-
-        return MessagesOutputs(
-            id=response.id,
-            content=[block.model_dump() for block in response.content],
-            model=response.model,
-            stop_reason=response.stop_reason,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-        )
+            return MessagesOutputs(
+                id=response.id,
+                content=[block.model_dump() for block in response.content],
+                model=response.model,
+                stop_reason=response.stop_reason,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+            )
 
     async def on_create(self) -> MessagesOutputs:
         """Create by calling Messages API."""

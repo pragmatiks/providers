@@ -182,6 +182,10 @@ async def test_api_error_propagates(
             body={"error": {"message": "Invalid API key"}},
         )
     )
+    # Support async context manager protocol
+    mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = mocker.AsyncMock(return_value=None)
+
     mocker.patch(
         "anthropic_provider.resources.messages.AsyncAnthropic",
         return_value=mock_client,

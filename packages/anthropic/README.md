@@ -1,45 +1,44 @@
-# anthropic Provider
+# Anthropic Provider
 
-Anthropic provider for Pragmatiks
+Anthropic provider for Pragmatiks - wraps the Claude Messages API for reactive AI completions.
 
 ## Resources
 
-Define your resources in `src/anthropic_provider/resources.py`:
+### `anthropic/messages`
+
+Wraps the Claude Messages API. API keys can be injected via `FieldReference` from `pragma/secret` resources.
+
+**Config:**
+- `api_key` - Anthropic API key (use FieldReference for injection)
+- `model` - Model identifier (e.g., `claude-sonnet-4-20250514`)
+- `messages` - Conversation messages in Anthropic format
+- `max_tokens` - Maximum tokens in the response
+- `system` - Optional system prompt
+- `temperature` - Optional sampling temperature (0.0-1.0)
+
+**Outputs:**
+- `id` - Anthropic message ID
+- `content` - Response content blocks
+- `model` - Model used for generation
+- `stop_reason` - Reason generation stopped
+- `input_tokens` - Tokens in input
+- `output_tokens` - Tokens in output
+
+## Usage
 
 ```python
-from pragma_sdk import Resource, Config, Outputs, Field
-from typing import ClassVar
+from anthropic_provider import Messages, MessagesConfig
 
-class MyResourceConfig(Config):
-    name: Field[str]
-    size: Field[int] = 10
-
-class MyResourceOutputs(Outputs):
-    url: str
-    created_at: str
-
-class MyResource(Resource[MyResourceConfig, MyResourceOutputs]):
-    provider: ClassVar[str] = "anthropic"
-    resource: ClassVar[str] = "my_resource"
-
-    async def on_create(self) -> MyResourceOutputs:
-        # Create the resource
-        return MyResourceOutputs(url="...", created_at="...")
-
-    async def on_update(self, previous_config: MyResourceConfig) -> MyResourceOutputs:
-        # Update the resource
-        return self.outputs
-
-    async def on_delete(self) -> None:
-        # Delete the resource
-        pass
+config = MessagesConfig(
+    api_key="sk-...",  # Or use FieldReference
+    model="claude-sonnet-4-20250514",
+    messages=[{"role": "user", "content": "Hello!"}],
+    max_tokens=1024,
+    system="You are a helpful assistant.",
+)
 ```
 
 ## Development
-
-### Testing
-
-Test your resource lifecycle methods with ProviderHarness:
 
 ```bash
 # Install dependencies
@@ -47,41 +46,30 @@ uv sync --dev
 
 # Run tests
 uv run pytest tests/
+
+# Lint
+uv run ruff check .
 ```
 
-### Writing Tests
+## Testing
 
 Use `ProviderHarness` to test lifecycle methods:
 
 ```python
 from pragma_sdk.provider import ProviderHarness
-from anthropic_provider import ExampleResource, ExampleConfig
+from anthropic_provider import Messages, MessagesConfig
 
-async def test_create():
-    harness = ProviderHarness()
+async def test_create(harness, mock_anthropic_client):
     result = await harness.invoke_create(
-        ExampleResource,
-        name="test",
-        config=ExampleConfig(name="my-resource", size=10),
+        Messages,
+        name="test-msg",
+        config=MessagesConfig(
+            api_key="sk-test",
+            model="claude-sonnet-4-20250514",
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=100,
+        ),
     )
     assert result.success
-    assert result.outputs.url is not None
-```
-
-## Deployment
-
-Push your provider to Pragmatiks platform:
-
-```bash
-pragma provider push
-```
-
-The platform handles all runtime infrastructure - you just push your code.
-
-## Updating This Project
-
-This project was created with [Copier](https://copier.readthedocs.io/). To update to the latest template:
-
-```bash
-copier update
+    assert result.outputs.id is not None
 ```

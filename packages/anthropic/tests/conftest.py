@@ -19,7 +19,7 @@ def harness() -> ProviderHarness:
 
 @pytest.fixture
 def mock_anthropic_client(mocker: "MockerFixture") -> "MockType":
-    """Mock AsyncAnthropic client."""
+    """Mock AsyncAnthropic client with async context manager support."""
     mock_client = mocker.MagicMock()
 
     # Mock response
@@ -40,6 +40,10 @@ def mock_anthropic_client(mocker: "MockerFixture") -> "MockType":
     mock_messages = mocker.MagicMock()
     mock_messages.create = mocker.AsyncMock(return_value=mock_response)
     mock_client.messages = mock_messages
+
+    # Support async context manager protocol
+    mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = mocker.AsyncMock(return_value=None)
 
     mocker.patch(
         "anthropic_provider.resources.messages.AsyncAnthropic",
