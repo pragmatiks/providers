@@ -33,3 +33,7 @@ jobs:
       - name: Test GCP provider
         working-directory: packages/gcp
         run: uv run pytest tests/ --cov=gcp_provider --cov-report=term-missing
+
+      - name: Test Anthropic provider
+        working-directory: packages/anthropic
+        run: uv run pytest tests/ --cov=anthropic_provider --cov-report=term-missing
