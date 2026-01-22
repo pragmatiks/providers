@@ -4,6 +4,9 @@ includes:
   gcp:
     taskfile: ./taskfiles/gcp.Taskfile.yaml
     dir: ./packages/gcp
+  anthropic:
+    taskfile: ./taskfiles/anthropic.Taskfile.yaml
+    dir: ./packages/anthropic
 
 tasks:
   default: task --list-all
@@ -14,13 +17,16 @@ tasks:
     desc: Run all tests across all packages
     deps:
       - gcp:test
+      - anthropic:test
 
   format:
     desc: Format all Python code
     deps:
       - gcp:format
+      - anthropic:format
 
   check:
     desc: Run all checks (ruff + type checking)
     deps:
       - gcp:check
+      - anthropic:check
