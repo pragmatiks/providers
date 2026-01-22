@@ -7,6 +7,9 @@ includes:
   anthropic:
     taskfile: ./taskfiles/anthropic.Taskfile.yaml
     dir: ./packages/anthropic
+  openai:
+    taskfile: ./taskfiles/openai.Taskfile.yaml
+    dir: ./packages/openai
 
 tasks:
   default: task --list-all
@@ -18,15 +21,18 @@ tasks:
     deps:
       - gcp:test
       - anthropic:test
+      - openai:test
 
   format:
     desc: Format all Python code
     deps:
       - gcp:format
       - anthropic:format
+      - openai:format
 
   check:
     desc: Run all checks (ruff + type checking)
     deps:
       - gcp:check
       - anthropic:check
+      - openai:check
