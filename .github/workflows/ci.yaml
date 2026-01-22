@@ -37,3 +37,7 @@ jobs:
       - name: Test Anthropic provider
         working-directory: packages/anthropic
         run: uv run pytest tests/ --cov=anthropic_provider --cov-report=term-missing
+
+      - name: Test OpenAI provider
+        working-directory: packages/openai
+        run: uv run pytest tests/ --cov=openai_provider --cov-report=term-missing
