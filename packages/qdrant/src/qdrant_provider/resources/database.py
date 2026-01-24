@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -97,8 +99,7 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         return f"qdrant-{self.name}"
 
     def _get_namespace(self) -> str:
-        """Get Kubernetes namespace from resource name or default."""
-        # Use the resource name as namespace, or default to 'default'
+        """Get Kubernetes namespace."""
         return "default"
 
     async def _get_kubeconfig(self) -> str:
@@ -164,21 +165,23 @@ users:
 
         return values
 
-    async def _run_helm(self, args: list[str], kubeconfig_path: str) -> subprocess.CompletedProcess:
-        """Run helm command with kubeconfig.
+    async def _run_command(
+        self, cmd: list[str], kubeconfig_path: str, name: str
+    ) -> subprocess.CompletedProcess:
+        """Run a CLI command with kubeconfig.
 
         Args:
-            args: Helm command arguments.
+            cmd: Full command with arguments.
             kubeconfig_path: Path to kubeconfig file.
+            name: Command name for error messages.
 
         Returns:
             Completed process result.
 
         Raises:
-            RuntimeError: If helm command fails.
+            RuntimeError: If command fails.
         """
         env = {"KUBECONFIG": kubeconfig_path}
-        cmd = ["helm", *args]
 
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
@@ -187,16 +190,20 @@ users:
                 cmd,
                 capture_output=True,
                 text=True,
-                env={**subprocess.os.environ, **env},
+                env={**os.environ, **env},
                 check=False,
             ),
         )
 
         if result.returncode != 0:
-            msg = f"Helm command failed: {result.stderr}"
+            msg = f"{name} command failed: {result.stderr}"
             raise RuntimeError(msg)
 
         return result
+
+    async def _run_helm(self, args: list[str], kubeconfig_path: str) -> subprocess.CompletedProcess:
+        """Run helm command with kubeconfig."""
+        return await self._run_command(["helm", *args], kubeconfig_path, "Helm")
 
     async def _wait_for_ready(self, kubeconfig_path: str) -> bool:
         """Wait for StatefulSet to be ready.
@@ -239,38 +246,8 @@ users:
         raise TimeoutError(msg)
 
     async def _run_kubectl(self, args: list[str], kubeconfig_path: str) -> subprocess.CompletedProcess:
-        """Run kubectl command with kubeconfig.
-
-        Args:
-            args: kubectl command arguments.
-            kubeconfig_path: Path to kubeconfig file.
-
-        Returns:
-            Completed process result.
-
-        Raises:
-            RuntimeError: If kubectl command fails.
-        """
-        env = {"KUBECONFIG": kubeconfig_path}
-        cmd = ["kubectl", *args]
-
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                env={**subprocess.os.environ, **env},
-                check=False,
-            ),
-        )
-
-        if result.returncode != 0:
-            msg = f"kubectl command failed: {result.stderr}"
-            raise RuntimeError(msg)
-
-        return result
+        """Run kubectl command with kubeconfig."""
+        return await self._run_command(["kubectl", *args], kubeconfig_path, "kubectl")
 
     async def _helm_install(self, kubeconfig_path: str, values_path: str) -> None:
         """Install or upgrade Qdrant Helm chart.
@@ -365,8 +342,6 @@ users:
         Returns:
             DatabaseOutputs with in-cluster URLs.
         """
-        import json
-
         kubeconfig = await self._get_kubeconfig()
         values = self._build_helm_values()
 
@@ -392,8 +367,6 @@ users:
         Returns:
             DatabaseOutputs with in-cluster URLs.
         """
-        import json
-
         # Check for immutable field changes
         # Cluster change would require migration which we don't support
         if previous_config.cluster.id != self.config.cluster.id:
