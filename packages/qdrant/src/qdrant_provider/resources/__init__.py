@@ -9,10 +9,22 @@ from qdrant_provider.resources.collection import (
     CollectionOutputs,
     VectorConfig,
 )
+from qdrant_provider.resources.database import (
+    Database,
+    DatabaseConfig,
+    DatabaseOutputs,
+    ResourceConfig,
+    StorageConfig,
+)
 
 __all__ = [
     "Collection",
     "CollectionConfig",
     "CollectionOutputs",
+    "Database",
+    "DatabaseConfig",
+    "DatabaseOutputs",
+    "ResourceConfig",
+    "StorageConfig",
     "VectorConfig",
 ]

@@ -10,6 +10,11 @@ from qdrant_provider.resources import (
     Collection,
     CollectionConfig,
     CollectionOutputs,
+    Database,
+    DatabaseConfig,
+    DatabaseOutputs,
+    ResourceConfig,
+    StorageConfig,
     VectorConfig,
 )
 
@@ -17,11 +22,17 @@ qdrant = Provider(name="qdrant")
 
 # Register resources
 qdrant.resource("collection")(Collection)
+qdrant.resource("database")(Database)
 
 __all__ = [
     "qdrant",
     "Collection",
     "CollectionConfig",
     "CollectionOutputs",
+    "Database",
+    "DatabaseConfig",
+    "DatabaseOutputs",
+    "ResourceConfig",
+    "StorageConfig",
     "VectorConfig",
 ]
