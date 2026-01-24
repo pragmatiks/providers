@@ -122,9 +122,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
             RuntimeError: If cluster enters ERROR state.
         """
         for _ in range(_MAX_POLL_ATTEMPTS):
-            cluster = await client.get_cluster(
-                request=GetClusterRequest(name=self._cluster_path())
-            )
+            cluster = await client.get_cluster(request=GetClusterRequest(name=self._cluster_path()))
 
             if cluster.status == Cluster.Status.RUNNING:
                 return cluster
@@ -156,9 +154,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         """
         for _ in range(_MAX_POLL_ATTEMPTS):
             try:
-                await client.get_cluster(
-                    request=GetClusterRequest(name=self._cluster_path())
-                )
+                await client.get_cluster(request=GetClusterRequest(name=self._cluster_path()))
                 await asyncio.sleep(_POLL_INTERVAL_SECONDS)
             except NotFound:
                 return
@@ -257,9 +253,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
 
         # Fetch current cluster state
         client = self._get_client()
-        cluster = await client.get_cluster(
-            request=GetClusterRequest(name=self._cluster_path())
-        )
+        cluster = await client.get_cluster(request=GetClusterRequest(name=self._cluster_path()))
 
         return GKEOutputs(
             name=cluster.name,
@@ -277,9 +271,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         client = self._get_client()
 
         try:
-            await client.delete_cluster(
-                request=DeleteClusterRequest(name=self._cluster_path())
-            )
+            await client.delete_cluster(request=DeleteClusterRequest(name=self._cluster_path()))
             await self._wait_for_deletion(client)
         except NotFound:
             pass

@@ -316,10 +316,7 @@ async def test_update_unchanged_returns_existing(
 
     assert result == existing_outputs
     # Verify no helm calls were made (short-circuited)
-    helm_upgrade_calls = [
-        c for c in mock_subprocess.call_args_list
-        if c[0][0][0] == "helm" and "upgrade" in c[0][0]
-    ]
+    helm_upgrade_calls = [c for c in mock_subprocess.call_args_list if c[0][0][0] == "helm" and "upgrade" in c[0][0]]
     assert len(helm_upgrade_calls) == 0
 
 

@@ -217,9 +217,13 @@ users:
             try:
                 result = await self._run_kubectl(
                     [
-                        "get", "statefulset", release_name,
-                        "-n", namespace,
-                        "-o", "jsonpath={.status.readyReplicas}",
+                        "get",
+                        "statefulset",
+                        release_name,
+                        "-n",
+                        namespace,
+                        "-o",
+                        "jsonpath={.status.readyReplicas}",
                     ],
                     kubeconfig_path,
                 )
@@ -280,13 +284,18 @@ users:
 
         await self._run_helm(
             [
-                "upgrade", "--install", release_name,
+                "upgrade",
+                "--install",
+                release_name,
                 "qdrant/qdrant",
-                "--namespace", namespace,
+                "--namespace",
+                namespace,
                 "--create-namespace",
-                "--values", values_path,
+                "--values",
+                values_path,
                 "--wait",
-                "--timeout", "5m",
+                "--timeout",
+                "5m",
             ],
             kubeconfig_path,
         )
@@ -303,8 +312,10 @@ users:
         try:
             await self._run_helm(
                 [
-                    "uninstall", release_name,
-                    "--namespace", namespace,
+                    "uninstall",
+                    release_name,
+                    "--namespace",
+                    namespace,
                 ],
                 kubeconfig_path,
             )
