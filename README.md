@@ -26,7 +26,7 @@ config:
 ```
 
 ```bash
-pragma resources apply --pending secret.yaml
+pragma resources apply secret.yaml
 pragma resources get gcp/secret db-password
 ```
 
@@ -43,6 +43,69 @@ pip install pragmatiks-gcp-provider
 | Resource | Description |
 |----------|-------------|
 | `gcp/secret` | Secret Manager secrets |
+| `gcp/gke` | GKE Autopilot clusters |
+
+### Anthropic Provider
+
+Claude AI model integration.
+
+```bash
+pip install pragmatiks-anthropic-provider
+```
+
+| Resource | Description |
+|----------|-------------|
+| `anthropic/messages` | Claude Messages API for completions |
+
+### OpenAI Provider
+
+OpenAI model integration.
+
+```bash
+pip install pragmatiks-openai-provider
+```
+
+| Resource | Description |
+|----------|-------------|
+| `openai/chat_completions` | Chat Completions API |
+| `openai/embeddings` | Text embeddings API |
+
+### Docling Provider
+
+Document parsing for RAG pipelines.
+
+```bash
+pip install pragmatiks-docling-provider
+```
+
+| Resource | Description |
+|----------|-------------|
+| `docling/parser` | Parse PDF, DOCX, HTML, Markdown with OCR support |
+
+### Qdrant Provider
+
+Vector database for similarity search.
+
+```bash
+pip install pragmatiks-qdrant-provider
+```
+
+| Resource | Description |
+|----------|-------------|
+| `qdrant/database` | Deploy Qdrant to GKE via Helm |
+| `qdrant/collection` | Manage vector collections |
+
+### Agno Provider
+
+AI agent deployment.
+
+```bash
+pip install pragmatiks-agno-provider
+```
+
+| Resource | Description |
+|----------|-------------|
+| `agno/agent` | Deploy AI agents to GKE |
 
 ## Using Provider Resources
 
@@ -82,15 +145,14 @@ Create your own providers with the SDK:
 
 ```bash
 # Initialize a provider project
-pragma provider init mycompany
+pragma providers init mycompany
 
 # Implement your resources
 cd mycompany-provider
 # Edit src/mycompany_provider/resources/
 
 # Deploy to the platform
-pragma provider sync
-pragma provider push --deploy
+pragma providers push --deploy
 ```
 
 See the [Building Providers Guide](https://docs.pragmatiks.io/building-providers/overview) for complete documentation.
@@ -104,11 +166,11 @@ Each provider contains:
 - **Lifecycle methods** - `on_create`, `on_update`, `on_delete` implementations
 
 ```python
-from pragma_sdk import Provider, Resource, Config, Outputs
-
-gcp = Provider(name="gcp")
+from typing import ClassVar
+from pragma_sdk import Resource, Config, Outputs
 
 class SecretConfig(Config):
+    project_id: str
     secret_id: str
     data: str
 
@@ -116,13 +178,15 @@ class SecretOutputs(Outputs):
     resource_name: str
     version_id: str
 
-@gcp.resource("secret")
 class Secret(Resource[SecretConfig, SecretOutputs]):
+    provider: ClassVar[str] = "gcp"
+    resource: ClassVar[str] = "secret"
+
     async def on_create(self) -> SecretOutputs:
         # Create secret in GCP Secret Manager
         ...
 
-    async def on_update(self, previous: SecretConfig) -> SecretOutputs:
+    async def on_update(self, previous_config: SecretConfig) -> SecretOutputs:
         # Update secret version
         ...
 
@@ -151,14 +215,14 @@ task gcp:check
 ## Repository Structure
 
 ```
-providers/
+pragma-providers/
 ├── packages/
-│   └── gcp/              # GCP provider package
-│       ├── src/
-│       │   └── gcp_provider/
-│       │       └── resources/
-│       │           └── secret.py
-│       └── tests/
+│   ├── gcp/              # GCP provider (secret, gke)
+│   ├── anthropic/        # Anthropic provider (messages)
+│   ├── openai/           # OpenAI provider (chat_completions, embeddings)
+│   ├── docling/          # Docling provider (parser)
+│   ├── qdrant/           # Qdrant provider (database, collection)
+│   └── agno/             # Agno provider (agent)
 ├── pyproject.toml        # Workspace configuration
 └── README.md
 ```
