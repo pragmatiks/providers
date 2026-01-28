@@ -48,7 +48,6 @@ preview = true
 
 [tool.ty.environment]
 python-version = "3.13"
-python-platform = "darwin"
 
 [tool.ty.src]
 exclude = ["**/tests/**", "**/__pycache__/**"]
