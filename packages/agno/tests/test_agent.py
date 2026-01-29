@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from pragma_sdk import Dependency, LifecycleState
@@ -22,17 +22,12 @@ def create_agent_with_mocked_dependencies(
     replicas: int = 1,
     image: str = "ghcr.io/agno-ai/agno:latest",
     instructions: str | None = None,
-    mock_gke_resource: MagicMock | None = None,
-    mock_model_resource: MagicMock | None = None,
-    mock_embeddings_resource: MagicMock | None = None,
-    mock_vector_store_resource: MagicMock | None = None,
+    mock_gke_resource: Any = None,
+    mock_model_resource: Any = None,
+    mock_embeddings_resource: Any = None,
+    mock_vector_store_resource: Any = None,
     outputs: AgentOutputs | None = None,
 ) -> Agent:
-    """Create an Agent instance with mocked dependency resolution.
-
-    This bypasses Pydantic validation which loses private attributes.
-    """
-    # Create dependencies
     cluster_dep = Dependency(provider="gcp", resource="gke", name="test-cluster")
     model_dep = Dependency(provider="anthropic", resource="messages", name="claude")
 
@@ -44,7 +39,6 @@ def create_agent_with_mocked_dependencies(
     if mock_vector_store_resource is not None:
         vector_store_dep = Dependency(provider="qdrant", resource="collection", name="my-collection")
 
-    # Create config
     config = AgentConfig(
         cluster=cluster_dep,
         model=model_dep,
@@ -55,8 +49,6 @@ def create_agent_with_mocked_dependencies(
         replicas=replicas,
     )
 
-    # Inject resolved resources via _resolved attribute.
-    # This is a standard pattern for testing SDK Dependency objects.
     if mock_gke_resource:
         config.cluster._resolved = mock_gke_resource
     if mock_model_resource:
@@ -66,7 +58,6 @@ def create_agent_with_mocked_dependencies(
     if mock_vector_store_resource and vector_store_dep:
         config.vector_store._resolved = mock_vector_store_resource
 
-    # Create resource
     return Agent(
         name=name,
         config=config,
@@ -76,12 +67,11 @@ def create_agent_with_mocked_dependencies(
 
 
 async def test_create_agent_success(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
-    mock_subprocess: MagicMock,
-    mock_asyncio_sleep: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
+    mock_subprocess: Any,
+    mock_asyncio_sleep: Any,
 ) -> None:
-    """on_create deploys agent via kubectl and returns outputs."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         mock_gke_resource=mock_gke_resource,
@@ -95,14 +85,13 @@ async def test_create_agent_success(
 
 
 async def test_create_agent_with_all_dependencies(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
-    mock_embeddings_resource: MagicMock,
-    mock_vector_store_resource: MagicMock,
-    mock_subprocess: MagicMock,
-    mock_asyncio_sleep: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
+    mock_embeddings_resource: Any,
+    mock_vector_store_resource: Any,
+    mock_subprocess: Any,
+    mock_asyncio_sleep: Any,
 ) -> None:
-    """on_create passes all dependency URLs as environment variables."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         instructions="You are a helpful assistant.",
@@ -116,18 +105,16 @@ async def test_create_agent_with_all_dependencies(
 
     assert result.ready is True
 
-    # Check that kubectl apply was called with correct env vars
     apply_calls = [c for c in mock_subprocess.call_args_list if c[0][0][0] == "kubectl" and "apply" in c[0][0]]
-    assert len(apply_calls) >= 2  # Deployment + Service
+    assert len(apply_calls) >= 2
 
 
 async def test_create_agent_custom_image(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
-    mock_subprocess: MagicMock,
-    mock_asyncio_sleep: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
+    mock_subprocess: Any,
+    mock_asyncio_sleep: Any,
 ) -> None:
-    """on_create uses custom container image."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         image="my-registry.io/my-agent:v1.0.0",
@@ -138,23 +125,20 @@ async def test_create_agent_custom_image(
     result = await agent.on_create()
 
     assert result.ready is True
-    # The image is embedded in the manifest, verified by deployment working
 
 
 async def test_create_agent_multiple_replicas(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
     mocker: "MockerFixture",
 ) -> None:
-    """on_create handles multiple replicas."""
-
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
         result.returncode = 0
         result.stdout = ""
         result.stderr = ""
         if cmd[0] == "kubectl" and "deployment" in cmd:
-            result.stdout = "3"  # 3 ready replicas
+            result.stdout = "3"
         return result
 
     mocker.patch("subprocess.run", side_effect=run_side_effect)
@@ -173,11 +157,10 @@ async def test_create_agent_multiple_replicas(
 
 
 async def test_create_agent_waits_for_ready(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
     mocker: "MockerFixture",
 ) -> None:
-    """on_create polls Deployment until ready."""
     call_count = 0
 
     def run_side_effect(cmd, **kwargs):
@@ -189,7 +172,6 @@ async def test_create_agent_waits_for_ready(
 
         if cmd[0] == "kubectl" and "deployment" in cmd and "jsonpath" in str(cmd):
             call_count += 1
-            # First call returns 0 replicas, second returns 1
             result.stdout = "0" if call_count == 1 else "1"
 
         return result
@@ -206,16 +188,14 @@ async def test_create_agent_waits_for_ready(
     result = await agent.on_create()
 
     assert result.ready is True
-    assert call_count >= 2  # At least two kubectl calls to check readiness
+    assert call_count >= 2
 
 
 async def test_create_agent_kubectl_failure(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
     mocker: "MockerFixture",
 ) -> None:
-    """on_create fails when kubectl command fails."""
-
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
         if cmd[0] == "kubectl" and "apply" in cmd:
@@ -240,12 +220,11 @@ async def test_create_agent_kubectl_failure(
 
 
 async def test_update_unchanged_returns_existing(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
-    mock_subprocess: MagicMock,
-    mock_asyncio_sleep: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
+    mock_subprocess: Any,
+    mock_asyncio_sleep: Any,
 ) -> None:
-    """on_update returns existing outputs when config unchanged."""
     existing_outputs = AgentOutputs(
         url="http://agno-test-agent.default.svc.cluster.local",
         ready=True,
@@ -258,10 +237,8 @@ async def test_update_unchanged_returns_existing(
         outputs=existing_outputs,
     )
 
-    # Reset mock to track calls
     mock_subprocess.reset_mock()
 
-    # Create identical previous config
     previous_config = AgentConfig(
         cluster=Dependency(provider="gcp", resource="gke", name="test-cluster"),
         model=Dependency(provider="anthropic", resource="messages", name="claude"),
@@ -270,25 +247,22 @@ async def test_update_unchanged_returns_existing(
     result = await agent.on_update(previous_config)
 
     assert result == existing_outputs
-    # Verify no kubectl apply calls were made (short-circuited)
     apply_calls = [c for c in mock_subprocess.call_args_list if c[0][0][0] == "kubectl" and "apply" in c[0][0]]
     assert len(apply_calls) == 0
 
 
 async def test_update_replicas_triggers_kubectl_apply(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
     mocker: "MockerFixture",
 ) -> None:
-    """on_update runs kubectl apply when replicas change."""
-
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
         result.returncode = 0
         result.stdout = ""
         result.stderr = ""
         if cmd[0] == "kubectl" and "deployment" in cmd:
-            result.stdout = "3"  # 3 ready replicas
+            result.stdout = "3"
         return result
 
     mocker.patch("subprocess.run", side_effect=run_side_effect)
@@ -305,7 +279,6 @@ async def test_update_replicas_triggers_kubectl_apply(
         ),
     )
 
-    # Previous config had different replicas
     previous_config = AgentConfig(
         cluster=Dependency(provider="gcp", resource="gke", name="test-cluster"),
         model=Dependency(provider="anthropic", resource="messages", name="claude"),
@@ -318,17 +291,15 @@ async def test_update_replicas_triggers_kubectl_apply(
 
 
 async def test_update_rejects_cluster_change(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
 ) -> None:
-    """on_update rejects cluster changes."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         mock_gke_resource=mock_gke_resource,
         mock_model_resource=mock_model_resource,
     )
 
-    # Previous config had different cluster
     previous_config = AgentConfig(
         cluster=Dependency(provider="gcp", resource="gke", name="other-cluster"),
         model=Dependency(provider="anthropic", resource="messages", name="claude"),
@@ -339,12 +310,10 @@ async def test_update_rejects_cluster_change(
 
 
 async def test_update_model_change_triggers_apply(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
     mocker: "MockerFixture",
 ) -> None:
-    """on_update runs kubectl apply when model dependency changes."""
-
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
         result.returncode = 0
@@ -367,7 +336,6 @@ async def test_update_model_change_triggers_apply(
         ),
     )
 
-    # Previous config had different model
     previous_config = AgentConfig(
         cluster=Dependency(provider="gcp", resource="gke", name="test-cluster"),
         model=Dependency(provider="openai", resource="chat", name="gpt-4"),
@@ -376,17 +344,15 @@ async def test_update_model_change_triggers_apply(
     result = await agent.on_update(previous_config)
 
     assert result.ready is True
-    # Verify kubectl apply was called
     apply_calls = [c for c in mock_run.call_args_list if c[0][0][0] == "kubectl" and "apply" in c[0][0]]
     assert len(apply_calls) >= 2
 
 
 async def test_delete_success(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
-    mock_subprocess: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
+    mock_subprocess: Any,
 ) -> None:
-    """on_delete removes Deployment and Service."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         mock_gke_resource=mock_gke_resource,
@@ -395,28 +361,23 @@ async def test_delete_success(
 
     await agent.on_delete()
 
-    # Verify kubectl delete was called for both resources
     delete_calls = [c for c in mock_subprocess.call_args_list if c[0][0][0] == "kubectl" and "delete" in c[0][0]]
     assert len(delete_calls) == 2
 
-    # Check deployment and service were deleted
-    deleted_resources = [c[0][0][2] for c in delete_calls]  # Third arg is resource type
+    deleted_resources = [c[0][0][2] for c in delete_calls]
     assert "deployment" in deleted_resources
     assert "service" in deleted_resources
 
 
 async def test_delete_idempotent(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
     mocker: "MockerFixture",
 ) -> None:
-    """on_delete succeeds when resources don't exist."""
-
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
         result.stdout = ""
         if cmd[0] == "kubectl" and "delete" in cmd:
-            # --ignore-not-found makes this succeed
             result.returncode = 0
             result.stderr = ""
         else:
@@ -432,22 +393,18 @@ async def test_delete_idempotent(
         mock_model_resource=mock_model_resource,
     )
 
-    # Should not raise
     await agent.on_delete()
 
 
 def test_provider_name() -> None:
-    """Resource has correct provider name."""
     assert Agent.provider == "agno"
 
 
 def test_resource_type() -> None:
-    """Resource has correct resource type."""
     assert Agent.resource == "agent"
 
 
 def test_build_outputs() -> None:
-    """_build_outputs creates correct in-cluster URL."""
     agent = create_agent_with_mocked_dependencies(name="my-agent")
 
     outputs = agent._build_outputs()
@@ -457,13 +414,11 @@ def test_build_outputs() -> None:
 
 
 def test_deployment_name() -> None:
-    """_get_deployment_name prefixes with agno-."""
     agent = create_agent_with_mocked_dependencies(name="test-agent")
     assert agent._get_deployment_name() == "agno-test-agent"
 
 
 def test_build_deployment_manifest() -> None:
-    """_build_deployment_manifest creates correct Kubernetes Deployment."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         replicas=2,
@@ -491,7 +446,6 @@ def test_build_deployment_manifest() -> None:
 
 
 def test_build_service_manifest() -> None:
-    """_build_service_manifest creates correct Kubernetes Service."""
     agent = create_agent_with_mocked_dependencies(name="test-agent")
 
     manifest = agent._build_service_manifest()
@@ -506,10 +460,9 @@ def test_build_service_manifest() -> None:
 
 
 async def test_get_env_vars_model_only(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
 ) -> None:
-    """_get_env_vars includes model URL."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         mock_gke_resource=mock_gke_resource,
@@ -522,12 +475,11 @@ async def test_get_env_vars_model_only(
 
 
 async def test_get_env_vars_with_all_dependencies(
-    mock_gke_resource: MagicMock,
-    mock_model_resource: MagicMock,
-    mock_embeddings_resource: MagicMock,
-    mock_vector_store_resource: MagicMock,
+    mock_gke_resource: Any,
+    mock_model_resource: Any,
+    mock_embeddings_resource: Any,
+    mock_vector_store_resource: Any,
 ) -> None:
-    """_get_env_vars includes all dependency URLs."""
     agent = create_agent_with_mocked_dependencies(
         name="test-agent",
         instructions="You are helpful.",
@@ -547,7 +499,6 @@ async def test_get_env_vars_with_all_dependencies(
 
 
 def test_deployment_manifest_has_pragma_labels() -> None:
-    """Deployment manifest includes pragma.io labels."""
     agent = create_agent_with_mocked_dependencies(name="test-agent")
 
     manifest = agent._build_deployment_manifest([])
@@ -559,7 +510,6 @@ def test_deployment_manifest_has_pragma_labels() -> None:
 
 
 def test_deployment_manifest_has_health_probes() -> None:
-    """Deployment manifest includes readiness and liveness probes."""
     agent = create_agent_with_mocked_dependencies(name="test-agent")
 
     manifest = agent._build_deployment_manifest([])

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, cast
 
 from pydantic import BaseModel
 from pragma_sdk import Config, Field, Outputs, Resource
@@ -74,9 +74,11 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
 
     def _get_client(self) -> AsyncQdrantClient:
         """Get Qdrant async client with configured credentials."""
+        api_key = cast(str, self.config.api_key) if self.config.api_key else None
+
         return AsyncQdrantClient(
             url=self.config.url,
-            api_key=self.config.api_key,
+            api_key=api_key,
         )
 
     def _get_distance(self) -> models.Distance:

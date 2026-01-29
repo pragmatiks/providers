@@ -12,6 +12,7 @@ from typing import Annotated, Any, ClassVar, Literal, Self
 from google.api_core.exceptions import AlreadyExists, NotFound
 from google.cloud.container_v1 import ClusterManagerAsyncClient
 from google.cloud.container_v1.types import (
+    Autopilot,
     Cluster,
     CreateClusterRequest,
     DeleteClusterRequest,
@@ -100,7 +101,6 @@ class GKEOutputs(Outputs):
     logs_url: str
 
 
-# Polling configuration for cluster operations
 _POLL_INTERVAL_SECONDS = 30
 _MAX_POLL_ATTEMPTS = 40  # 40 * 30s = 20 minutes max wait
 
@@ -164,8 +164,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         name = self.config.name
 
         console_url = (
-            f"https://console.cloud.google.com/kubernetes/clusters/details/"
-            f"{location}/{name}/details?project={project}"
+            f"https://console.cloud.google.com/kubernetes/clusters/details/{location}/{name}/details?project={project}"
         )
         logs_url = (
             f"https://console.cloud.google.com/logs/query;query="
@@ -255,7 +254,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
             cluster.subnetwork = self.config.subnetwork
 
         if self.config.autopilot:
-            cluster.autopilot = {"enabled": True}
+            cluster.autopilot = Autopilot(enabled=True)
         else:
             cluster.node_pools = [
                 NodePool(
@@ -329,11 +328,9 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
             msg = "Cannot change autopilot mode; delete and recreate resource"
             raise ValueError(msg)
 
-        # For unchanged configs, return existing outputs if available
         if self.outputs is not None:
             return self.outputs
 
-        # Fetch current cluster state
         client = self._get_client()
         cluster = await client.get_cluster(request=GetClusterRequest(name=self._cluster_path()))
 
@@ -357,9 +354,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         client = self._get_client()
 
         try:
-            cluster = await client.get_cluster(
-                request=GetClusterRequest(name=self._cluster_path())
-            )
+            cluster = await client.get_cluster(request=GetClusterRequest(name=self._cluster_path()))
         except NotFound:
             return HealthStatus(
                 status="unhealthy",

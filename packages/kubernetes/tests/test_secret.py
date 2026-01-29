@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from lightkube import ApiError
@@ -12,7 +11,7 @@ from pragma_sdk import Dependency, LifecycleState
 from kubernetes_provider import Secret, SecretConfig, SecretOutputs
 
 if TYPE_CHECKING:
-    pass
+    from pytest_mock import MockerFixture
 
 
 def create_secret_with_mocked_dependency(
@@ -21,10 +20,9 @@ def create_secret_with_mocked_dependency(
     secret_type: str = "Opaque",
     data: dict | None = None,
     string_data: dict | None = None,
-    mock_gke_cluster: MagicMock | None = None,
+    mock_gke_cluster: Any = None,
     outputs: SecretOutputs | None = None,
 ) -> Secret:
-    """Create a Secret with mocked GKE dependency."""
     dep = Dependency(provider="gcp", resource="gke", name="test-cluster")
 
     config = SecretConfig(
@@ -47,8 +45,8 @@ def create_secret_with_mocked_dependency(
 
 
 async def test_create_secret_success(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """on_create applies secret and returns outputs."""
     secret = create_secret_with_mocked_dependency(
@@ -66,8 +64,8 @@ async def test_create_secret_success(
 
 
 async def test_create_secret_with_string_data(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """on_create handles string_data (plain text)."""
     secret = create_secret_with_mocked_dependency(
@@ -83,8 +81,8 @@ async def test_create_secret_with_string_data(
 
 
 async def test_update_secret_success(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """on_update applies updated secret."""
     secret = create_secret_with_mocked_dependency(
@@ -106,8 +104,8 @@ async def test_update_secret_success(
 
 
 async def test_update_rejects_namespace_change(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """on_update rejects namespace changes."""
     secret = create_secret_with_mocked_dependency(
@@ -127,8 +125,8 @@ async def test_update_rejects_namespace_change(
 
 
 async def test_delete_secret_success(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """on_delete removes secret."""
     secret = create_secret_with_mocked_dependency(
@@ -142,12 +140,13 @@ async def test_delete_secret_success(
 
 
 async def test_delete_secret_idempotent(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """on_delete succeeds when secret doesn't exist."""
-    error = ApiError(response=MagicMock())
-    error.status = MagicMock(code=404)
+    error = ApiError(response=mocker.Any())
+    error.status = mocker.Any(code=404)
     mock_lightkube_client.delete.side_effect = error
 
     secret = create_secret_with_mocked_dependency(
@@ -169,11 +168,12 @@ def test_resource_type() -> None:
 
 
 async def test_health_exists(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """health() returns healthy when secret exists."""
-    mock_secret = MagicMock()
+    mock_secret = mocker.Any()
     mock_secret.data = {"username": "dXNlcg==", "password": "cGFzcw=="}
     mock_secret.type = "Opaque"
     mock_lightkube_client.get.return_value = mock_secret
@@ -191,12 +191,13 @@ async def test_health_exists(
 
 
 async def test_health_not_found(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """health() returns unhealthy when secret not found."""
-    error = ApiError(response=MagicMock())
-    error.status = MagicMock(code=404)
+    error = ApiError(response=mocker.Any())
+    error.status = mocker.Any(code=404)
     mock_lightkube_client.get.side_effect = error
 
     secret = create_secret_with_mocked_dependency(
@@ -211,8 +212,8 @@ async def test_health_not_found(
 
 
 async def test_logs_returns_message(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """logs() yields info message about secrets not having logs."""
     secret = create_secret_with_mocked_dependency(

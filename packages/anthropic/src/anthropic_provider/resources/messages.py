@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from anthropic import AsyncAnthropic
 from pragma_sdk import Config, Field, Outputs, Resource
@@ -65,7 +65,7 @@ class Messages(Resource[MessagesConfig, MessagesOutputs]):
 
     def _get_client(self) -> AsyncAnthropic:
         """Get Anthropic async client with configured API key."""
-        return AsyncAnthropic(api_key=self.config.api_key)
+        return AsyncAnthropic(api_key=cast(str, self.config.api_key))
 
     async def _call_api(self) -> MessagesOutputs:
         """Call the Messages API and return outputs."""

@@ -23,6 +23,7 @@ from lightkube.models.core_v1 import (
     ResourceRequirements,
     TCPSocketAction,
     VolumeMount,
+    VolumeResourceRequirements,
 )
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet as K8sStatefulSet
@@ -255,7 +256,7 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
             spec=PersistentVolumeClaimSpec(
                 storageClassName=config.storage_class,
                 accessModes=config.access_modes,
-                resources=ResourceRequirements(
+                resources=VolumeResourceRequirements(
                     requests={"storage": config.storage},
                 ),
             ),
@@ -294,6 +295,12 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
 
         if sts.status and sts.status.readyReplicas:
             ready = sts.status.readyReplicas
+
+        assert sts.metadata is not None
+        assert sts.metadata.name is not None
+        assert sts.metadata.namespace is not None
+        assert sts.spec is not None
+        assert sts.spec.serviceName is not None
 
         return StatefulSetOutputs(
             name=sts.metadata.name,
