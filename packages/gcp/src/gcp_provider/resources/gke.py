@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, ClassVar, Literal
+import re
+from typing import Annotated, Any, ClassVar, Literal, Self
 
 from google.api_core.exceptions import AlreadyExists, NotFound
 from google.cloud.container_v1 import ClusterManagerAsyncClient
@@ -17,7 +18,10 @@ from google.cloud.container_v1.types import (
     NodePool,
 )
 from google.oauth2 import service_account
+from pydantic import Field, field_validator, model_validator
 from pragma_sdk import Config, Outputs, Resource
+
+_CLUSTER_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,38}[a-z0-9]$|^[a-z]$")
 
 
 class GKEConfig(Config):
@@ -26,7 +30,8 @@ class GKEConfig(Config):
     Attributes:
         project_id: GCP project ID where the cluster will be created.
         credentials: GCP service account credentials JSON object or string.
-        region: GCP region for the cluster (e.g., europe-west4).
+        location: GCP location - either a region (e.g., europe-west4) for regional
+            clusters or a zone (e.g., europe-west4-a) for zonal clusters.
         name: Name of the GKE cluster.
         autopilot: Whether to create an Autopilot cluster. Defaults to True.
         network: VPC network name. Defaults to "default".
@@ -39,15 +44,35 @@ class GKEConfig(Config):
 
     project_id: str
     credentials: dict[str, Any] | str
-    region: str
+    location: str
     name: str
     autopilot: bool = True
     network: str = "default"
     subnetwork: str | None = None
     release_channel: Literal["RAPID", "REGULAR", "STABLE"] = "REGULAR"
-    initial_node_count: int = 1
+    initial_node_count: Annotated[int, Field(ge=1)] = 1
     machine_type: str = "e2-medium"
-    disk_size_gb: int = 100
+    disk_size_gb: Annotated[int, Field(ge=10)] = 100
+
+    @field_validator("name")
+    @classmethod
+    def validate_cluster_name(cls, v: str) -> str:
+        """Validate cluster name follows GCP naming rules."""
+        if not _CLUSTER_NAME_PATTERN.match(v):
+            msg = (
+                "Cluster name must start with a lowercase letter, contain only "
+                "lowercase letters, numbers, and hyphens, and be 1-40 characters"
+            )
+            raise ValueError(msg)
+        return v
+
+    @model_validator(mode="after")
+    def validate_standard_cluster_config(self) -> Self:
+        """Validate node configuration for standard clusters."""
+        if not self.autopilot and self.initial_node_count < 1:
+            msg = "Standard clusters require initial_node_count >= 1"
+            raise ValueError(msg)
+        return self
 
 
 class GKEOutputs(Outputs):
@@ -115,7 +140,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         Returns:
             Full GCP resource path for this cluster.
         """
-        return f"projects/{self.config.project_id}/locations/{self.config.region}/clusters/{self.config.name}"
+        return f"projects/{self.config.project_id}/locations/{self.config.location}/clusters/{self.config.name}"
 
     def _parent_path(self) -> str:
         """Build parent resource path for cluster creation.
@@ -123,7 +148,7 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         Returns:
             Parent path (project/location).
         """
-        return f"projects/{self.config.project_id}/locations/{self.config.region}"
+        return f"projects/{self.config.project_id}/locations/{self.config.location}"
 
     async def _wait_for_running(self, client: ClusterManagerAsyncClient) -> Cluster:
         """Poll cluster until it reaches RUNNING state.
@@ -259,8 +284,8 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
             msg = "Cannot change project_id; delete and recreate resource"
             raise ValueError(msg)
 
-        if previous_config.region != self.config.region:
-            msg = "Cannot change region; delete and recreate resource"
+        if previous_config.location != self.config.location:
+            msg = "Cannot change location; delete and recreate resource"
             raise ValueError(msg)
 
         if previous_config.name != self.config.name:

@@ -11,7 +11,7 @@ from pragma_sdk.provider import ProviderHarness
 from gcp_provider import Secret, SecretConfig, SecretOutputs
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    from pytest_mock import MagicMock, MockerFixture
 
 
 # Sample GCP service account credentials for testing

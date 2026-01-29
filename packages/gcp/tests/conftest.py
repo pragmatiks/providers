@@ -10,7 +10,7 @@ from pragma_sdk.provider import ProviderHarness
 
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    from pytest_mock import MockerFixture, MagicMock
 
 SAMPLE_CREDENTIALS = {
     "type": "service_account",

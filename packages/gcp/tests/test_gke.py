@@ -11,7 +11,7 @@ from pragma_sdk.provider import ProviderHarness
 from gcp_provider import GKE, GKEConfig, GKEOutputs
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    from pytest_mock import MagicMock, MockerFixture
 
 
 async def test_create_cluster_success(
@@ -23,7 +23,7 @@ async def test_create_cluster_success(
     config = GKEConfig(
         project_id="test-project",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="test-cluster",
         autopilot=True,
         network="default",
@@ -55,7 +55,7 @@ async def test_create_cluster_idempotent(
     config = GKEConfig(
         project_id="test-project",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="existing-cluster",
     )
 
@@ -75,7 +75,7 @@ async def test_create_cluster_with_subnetwork(
     config = GKEConfig(
         project_id="test-project",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="test-cluster",
         network="custom-vpc",
         subnetwork="custom-subnet",
@@ -99,7 +99,7 @@ async def test_create_cluster_standard_mode(
     config = GKEConfig(
         project_id="test-project",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="standard-cluster",
         autopilot=False,
     )
@@ -128,7 +128,7 @@ async def test_create_cluster_error_state(
     config = GKEConfig(
         project_id="test-project",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="failed-cluster",
     )
 
@@ -148,7 +148,7 @@ async def test_update_unchanged_returns_existing(
     previous = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
         network="default",
         autopilot=True,
@@ -156,7 +156,7 @@ async def test_update_unchanged_returns_existing(
     current = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
         network="default",
         autopilot=True,
@@ -190,13 +190,13 @@ async def test_update_rejects_project_change(
     previous = GKEConfig(
         project_id="proj-a",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
     )
     current = GKEConfig(
         project_id="proj-b",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
     )
 
@@ -211,22 +211,22 @@ async def test_update_rejects_project_change(
     assert "project_id" in str(result.error)
 
 
-async def test_update_rejects_region_change(
+async def test_update_rejects_location_change(
     harness: ProviderHarness,
     mock_container_client: MagicMock,
     sample_credentials: dict,
 ) -> None:
-    """on_update rejects region changes."""
+    """on_update rejects location changes."""
     previous = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
     )
     current = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="us-central1",
+        location="us-central1",
         name="cluster",
     )
 
@@ -238,7 +238,7 @@ async def test_update_rejects_region_change(
     )
 
     assert result.failed
-    assert "region" in str(result.error)
+    assert "location" in str(result.error)
 
 
 async def test_update_rejects_name_change(
@@ -250,13 +250,13 @@ async def test_update_rejects_name_change(
     previous = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster-a",
     )
     current = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster-b",
     )
 
@@ -280,14 +280,14 @@ async def test_update_rejects_network_change(
     previous = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
         network="vpc-a",
     )
     current = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
         network="vpc-b",
     )
@@ -312,14 +312,14 @@ async def test_update_rejects_autopilot_change(
     previous = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
         autopilot=True,
     )
     current = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
         autopilot=False,
     )
@@ -347,7 +347,7 @@ async def test_delete_success(
     config = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
     )
 
@@ -368,7 +368,7 @@ async def test_delete_idempotent(
     config = GKEConfig(
         project_id="proj",
         credentials=sample_credentials,
-        region="europe-west4",
+        location="europe-west4",
         name="cluster",
     )
 
