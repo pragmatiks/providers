@@ -68,6 +68,7 @@ class DatabaseConfig(Config):
     Attributes:
         cluster: GKE cluster dependency providing Kubernetes credentials.
         replicas: Number of Qdrant replicas (StatefulSet pods).
+        image: Docker image for Qdrant (default: qdrant/qdrant:latest).
         storage: Persistent storage configuration.
         resources: CPU and memory limits.
         api_key: API key for Qdrant authentication. If provided, used directly.
@@ -76,6 +77,7 @@ class DatabaseConfig(Config):
 
     cluster: Dependency[GKE]
     replicas: int = 1
+    image: str = "qdrant/qdrant:latest"
     storage: StorageConfig | None = None
     resources: ResourceConfig | None = None
     api_key: str | None = None
@@ -284,7 +286,7 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
 
         container = ContainerConfig(
             name="qdrant",
-            image="qdrant/qdrant:v1.16.3",
+            image=self.config.image,
             ports=[
                 ContainerPortConfig(name="rest", container_port=6333),
                 ContainerPortConfig(name="grpc", container_port=6334),

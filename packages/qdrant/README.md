@@ -33,6 +33,7 @@ config:
 |-------|------|----------|-------------|
 | `cluster` | `Dependency[GKE]` | Yes | GKE cluster to deploy to |
 | `replicas` | `int` | No | Number of replicas (default: `1`) |
+| `image` | `str` | No | Docker image (default: `qdrant/qdrant:latest`) |
 | `api_key` | `str` | No | API key for authentication (mutually exclusive with `generate_api_key`) |
 | `generate_api_key` | `bool` | No | Generate a secure 32-char API key (default: `false`) |
 | `storage` | `StorageConfig` | No | Persistent storage configuration |
