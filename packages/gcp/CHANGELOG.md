@@ -1,3 +1,15 @@
+## gcp-v0.54.0 (2026-01-29)
+
+### Feat
+
+- **gcp**: add logs() and health() methods to GKE resource
+
+## gcp-v0.44.0 (2026-01-29)
+
+### Feat
+
+- **gcp**: rename region to location for zonal cluster support
+
 ## gcp-v0.53.0 (2026-01-29)
 
 ### Feat
