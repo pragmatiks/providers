@@ -284,7 +284,7 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
 
         container = ContainerConfig(
             name="qdrant",
-            image="qdrant/qdrant:v1.12.1",
+            image="qdrant/qdrant:v1.16.3",
             ports=[
                 ContainerPortConfig(name="rest", container_port=6333),
                 ContainerPortConfig(name="grpc", container_port=6334),
