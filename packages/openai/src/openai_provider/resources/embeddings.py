@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel
@@ -81,12 +81,11 @@ class Embeddings(Resource[EmbeddingsConfig, EmbeddingsOutputs]):
 
     def _get_client(self) -> AsyncOpenAI:
         """Get OpenAI async client with configured API key."""
-        return AsyncOpenAI(api_key=self.config.api_key)
+        return AsyncOpenAI(api_key=cast(str, self.config.api_key))
 
     async def _validate_model(self) -> EmbeddingsOutputs:
         """Validate the API key and model by making a test embedding request."""
         async with self._get_client() as client:
-            # Make a minimal embedding request to validate credentials and model
             kwargs: dict[str, Any] = {
                 "model": self.config.model,
                 "input": "test",
@@ -97,7 +96,6 @@ class Embeddings(Resource[EmbeddingsConfig, EmbeddingsOutputs]):
 
             response = await client.embeddings.create(**kwargs)
 
-            # Get the actual dimensions from the response
             dimensions = len(response.data[0].embedding)
 
             return EmbeddingsOutputs(

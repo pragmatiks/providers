@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from pragma_sdk.provider import ProviderHarness
@@ -39,19 +38,18 @@ def sample_credentials() -> dict:
 
 
 @pytest.fixture
-def mock_gke_cluster(mocker: "MockerFixture") -> MagicMock:
-    """Mock GKE cluster resource with outputs and config."""
-    mock_outputs = MagicMock()
+def mock_gke_cluster(mocker: "MockerFixture") -> Any:
+    mock_outputs = mocker.MagicMock()
     mock_outputs.endpoint = "10.0.0.1"
     mock_outputs.cluster_ca_certificate = "Y2VydGlmaWNhdGU="
     mock_outputs.name = "test-cluster"
     mock_outputs.location = "europe-west4"
     mock_outputs.status = "RUNNING"
 
-    mock_config = MagicMock()
+    mock_config = mocker.MagicMock()
     mock_config.credentials = SAMPLE_CREDENTIALS
 
-    mock_cluster = MagicMock()
+    mock_cluster = mocker.MagicMock()
     mock_cluster.outputs = mock_outputs
     mock_cluster.config = mock_config
 
@@ -59,13 +57,12 @@ def mock_gke_cluster(mocker: "MockerFixture") -> MagicMock:
 
 
 @pytest.fixture
-def mock_lightkube_client(mocker: "MockerFixture") -> MagicMock:
-    """Mock lightkube AsyncClient."""
-    mock_client = MagicMock()
+def mock_lightkube_client(mocker: "MockerFixture") -> Any:
+    mock_client = mocker.MagicMock()
 
-    mock_client.apply = AsyncMock()
-    mock_client.get = AsyncMock()
-    mock_client.delete = AsyncMock()
+    mock_client.apply = mocker.AsyncMock()
+    mock_client.get = mocker.AsyncMock()
+    mock_client.delete = mocker.AsyncMock()
 
     mocker.patch(
         "kubernetes_provider.resources.service.create_client_from_gke",

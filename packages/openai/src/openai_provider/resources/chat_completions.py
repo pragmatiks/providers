@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from openai import AsyncOpenAI
 from pragma_sdk import Config, Field, Outputs, Resource
@@ -63,7 +63,7 @@ class ChatCompletions(Resource[ChatCompletionsConfig, ChatCompletionsOutputs]):
 
     def _get_client(self) -> AsyncOpenAI:
         """Get OpenAI async client with configured API key."""
-        return AsyncOpenAI(api_key=self.config.api_key)
+        return AsyncOpenAI(api_key=cast(str, self.config.api_key))
 
     async def _call_api(self) -> ChatCompletionsOutputs:
         """Call the Chat Completions API and return outputs."""

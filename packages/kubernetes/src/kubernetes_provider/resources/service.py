@@ -137,6 +137,12 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
 
     def _build_outputs(self, service: K8sService) -> ServiceOutputs:
         """Build outputs from Kubernetes Service object."""
+        assert service.metadata is not None
+        assert service.metadata.name is not None
+        assert service.metadata.namespace is not None
+        assert service.spec is not None
+        assert service.spec.type is not None
+
         return ServiceOutputs(
             name=service.metadata.name,
             namespace=service.metadata.namespace,

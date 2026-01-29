@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from lightkube import ApiError
@@ -17,7 +16,7 @@ from kubernetes_provider.resources.statefulset import (
 )
 
 if TYPE_CHECKING:
-    pass
+    from pytest_mock import MockerFixture
 
 
 def create_statefulset_with_mocked_dependency(
@@ -26,10 +25,9 @@ def create_statefulset_with_mocked_dependency(
     replicas: int = 1,
     service_name: str = "test-svc",
     containers: list[ContainerConfig] | None = None,
-    mock_gke_cluster: MagicMock | None = None,
+    mock_gke_cluster: Any = None,
     outputs: StatefulSetOutputs | None = None,
 ) -> StatefulSet:
-    """Create a StatefulSet with mocked GKE dependency."""
     dep = Dependency(provider="gcp", resource="gke", name="test-cluster")
 
     config = StatefulSetConfig(
@@ -52,11 +50,12 @@ def create_statefulset_with_mocked_dependency(
 
 
 async def test_create_statefulset_success(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """on_create applies statefulset and waits for ready."""
-    mock_sts = MagicMock()
+    mock_sts = mocker.Any()
     mock_sts.metadata.name = "test-sts"
     mock_sts.metadata.namespace = "default"
     mock_sts.spec.replicas = 1
@@ -77,11 +76,12 @@ async def test_create_statefulset_success(
 
 
 async def test_create_statefulset_with_pvc(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """on_create handles volume claim templates."""
-    mock_sts = MagicMock()
+    mock_sts = mocker.Any()
     mock_sts.metadata.name = "db"
     mock_sts.metadata.namespace = "default"
     mock_sts.spec.replicas = 1
@@ -124,18 +124,19 @@ async def test_create_statefulset_with_pvc(
 
 
 async def test_create_statefulset_waits_for_ready(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """on_create polls until replicas are ready."""
-    mock_sts_pending = MagicMock()
+    mock_sts_pending = mocker.Any()
     mock_sts_pending.metadata.name = "test-sts"
     mock_sts_pending.metadata.namespace = "default"
     mock_sts_pending.spec.replicas = 2
     mock_sts_pending.spec.serviceName = "test-svc"
     mock_sts_pending.status.readyReplicas = 1
 
-    mock_sts_ready = MagicMock()
+    mock_sts_ready = mocker.Any()
     mock_sts_ready.metadata.name = "test-sts"
     mock_sts_ready.metadata.namespace = "default"
     mock_sts_ready.spec.replicas = 2
@@ -157,11 +158,12 @@ async def test_create_statefulset_waits_for_ready(
 
 
 async def test_update_statefulset_success(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """on_update applies updated statefulset."""
-    mock_sts = MagicMock()
+    mock_sts = mocker.Any()
     mock_sts.metadata.name = "test-sts"
     mock_sts.metadata.namespace = "default"
     mock_sts.spec.replicas = 2
@@ -189,8 +191,8 @@ async def test_update_statefulset_success(
 
 
 async def test_update_rejects_service_name_change(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """on_update rejects service_name changes."""
     sts = create_statefulset_with_mocked_dependency(
@@ -212,8 +214,8 @@ async def test_update_rejects_service_name_change(
 
 
 async def test_delete_statefulset_success(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
 ) -> None:
     """on_delete removes statefulset."""
     sts = create_statefulset_with_mocked_dependency(
@@ -227,12 +229,13 @@ async def test_delete_statefulset_success(
 
 
 async def test_delete_statefulset_idempotent(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """on_delete succeeds when statefulset doesn't exist."""
-    error = ApiError(response=MagicMock())
-    error.status = MagicMock(code=404)
+    error = ApiError(response=mocker.Any())
+    error.status = mocker.Any(code=404)
     mock_lightkube_client.delete.side_effect = error
 
     sts = create_statefulset_with_mocked_dependency(
@@ -254,11 +257,12 @@ def test_resource_type() -> None:
 
 
 async def test_health_all_replicas_ready(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """health() returns healthy when all replicas ready."""
-    mock_sts = MagicMock()
+    mock_sts = mocker.Any()
     mock_sts.spec.replicas = 3
     mock_sts.status.readyReplicas = 3
     mock_lightkube_client.get.return_value = mock_sts
@@ -276,11 +280,12 @@ async def test_health_all_replicas_ready(
 
 
 async def test_health_partial_replicas(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """health() returns degraded when some replicas ready."""
-    mock_sts = MagicMock()
+    mock_sts = mocker.Any()
     mock_sts.spec.replicas = 3
     mock_sts.status.readyReplicas = 1
     mock_lightkube_client.get.return_value = mock_sts
@@ -297,11 +302,12 @@ async def test_health_partial_replicas(
 
 
 async def test_health_no_replicas(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """health() returns unhealthy when no replicas ready."""
-    mock_sts = MagicMock()
+    mock_sts = mocker.Any()
     mock_sts.spec.replicas = 3
     mock_sts.status.readyReplicas = 0
     mock_lightkube_client.get.return_value = mock_sts
@@ -318,12 +324,13 @@ async def test_health_no_replicas(
 
 
 async def test_health_not_found(
-    mock_lightkube_client: MagicMock,
-    mock_gke_cluster: MagicMock,
+    mock_lightkube_client: "Any",
+    mock_gke_cluster: "Any",
+    mocker: "MockerFixture",
 ) -> None:
     """health() returns unhealthy when statefulset not found."""
-    error = ApiError(response=MagicMock())
-    error.status = MagicMock(code=404)
+    error = ApiError(response=mocker.Any())
+    error.status = mocker.Any(code=404)
     mock_lightkube_client.get.side_effect = error
 
     sts = create_statefulset_with_mocked_dependency(

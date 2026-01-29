@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, cast
 
 from pydantic import BaseModel
 from pragma_sdk import Config, Field, Outputs, Resource
@@ -46,13 +46,13 @@ class CollectionOutputs(Outputs):
 
     Attributes:
         name: Collection name.
-        vectors_count: Number of indexed vectors in the collection.
+        indexed_vectors_count: Number of indexed vectors in the collection.
         points_count: Total number of points in the collection.
         status: Collection status (green, yellow, red).
     """
 
     name: str
-    vectors_count: int
+    indexed_vectors_count: int
     points_count: int
     status: str
 
@@ -74,9 +74,11 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
 
     def _get_client(self) -> AsyncQdrantClient:
         """Get Qdrant async client with configured credentials."""
+        api_key = cast(str, self.config.api_key) if self.config.api_key else None
+
         return AsyncQdrantClient(
             url=self.config.url,
-            api_key=self.config.api_key,
+            api_key=api_key,
         )
 
     def _get_distance(self) -> models.Distance:
@@ -93,7 +95,7 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
         info = await client.get_collection(self.config.name)
         return CollectionOutputs(
             name=self.config.name,
-            vectors_count=info.vectors_count or 0,
+            indexed_vectors_count=info.indexed_vectors_count or 0,
             points_count=info.points_count or 0,
             status=info.status.value if info.status else "unknown",
         )
@@ -125,13 +127,17 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
         Returns:
             CollectionOutputs with collection metadata.
         """
-        async with self._get_client() as client:
+        client = self._get_client()
+
+        try:
             exists = await client.collection_exists(self.config.name)
 
             if not exists:
                 await self._create_collection(client)
 
             return await self._get_collection_info(client)
+        finally:
+            await client.close()
 
     async def on_update(self, previous_config: CollectionConfig) -> CollectionOutputs:
         """Update collection by recreating if vector config changed.
@@ -153,22 +159,29 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
             msg = "Cannot change collection name; delete and recreate resource"
             raise ValueError(msg)
 
-        async with self._get_client() as client:
+        client = self._get_client()
+
+        try:
             if self._vector_config_changed(previous_config):
-                # Destructive recreation - vector config changed
                 exists = await client.collection_exists(self.config.name)
                 if exists:
                     await client.delete_collection(self.config.name)
                 await self._create_collection(client)
 
             return await self._get_collection_info(client)
+        finally:
+            await client.close()
 
     async def on_delete(self) -> None:
         """Delete collection and all its vectors.
 
         Idempotent: Succeeds if collection doesn't exist.
         """
-        async with self._get_client() as client:
+        client = self._get_client()
+
+        try:
             exists = await client.collection_exists(self.config.name)
             if exists:
                 await client.delete_collection(self.config.name)
+        finally:
+            await client.close()

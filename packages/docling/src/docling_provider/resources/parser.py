@@ -6,7 +6,7 @@ import base64
 import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Sized, cast
 
 import tiktoken
 from docling.datamodel.base_models import InputFormat
@@ -78,9 +78,6 @@ class Parser(Resource[ParserConfig, ParserOutputs]):
 
     async def on_delete(self) -> None:
         """Delete is a no-op since this resource is stateless."""
-
-
-# --- Parsing utilities (for action handlers when actions are implemented) ---
 
 
 class DocumentMetadata(Outputs):
@@ -165,7 +162,6 @@ class ChunkOutput(Outputs):
     chunks: list[Chunk]
 
 
-# Format mapping from extension to InputFormat
 FORMAT_MAP: dict[str, InputFormat] = {
     "pdf": InputFormat.PDF,
     "docx": InputFormat.DOCX,
@@ -197,7 +193,6 @@ def _create_converter(config: ParserConfig) -> DocumentConverter:
         if fmt.lower() in FORMAT_MAP:
             allowed_formats.append(FORMAT_MAP[fmt.lower()])
 
-    # Configure PDF pipeline options
     pdf_options = PdfPipelineOptions()
     pdf_options.do_ocr = config.ocr_enabled
     pdf_options.do_table_structure = config.table_extraction
@@ -214,12 +209,10 @@ def _create_converter(config: ParserConfig) -> DocumentConverter:
 
 def _extract_metadata(doc: "DoclingDocument", format_str: str) -> DocumentMetadata:
     """Extract metadata from a DoclingDocument."""
-    # Try to get title from document
     title = None
     if hasattr(doc, "name") and doc.name:
         title = doc.name
 
-    # Page count for PDFs
     page_count = None
     if hasattr(doc, "pages") and doc.pages:
         page_count = len(doc.pages)
@@ -243,8 +236,8 @@ def _chunk_document(doc: "DoclingDocument") -> list[Chunk]:
         if hasattr(chunk, "meta") and chunk.meta:
             if hasattr(chunk.meta, "headings") and chunk.meta.headings:
                 chunk_metadata["headings"] = chunk.meta.headings
-            if hasattr(chunk.meta, "doc_items"):
-                chunk_metadata["doc_items_count"] = len(chunk.meta.doc_items)
+            if hasattr(chunk.meta, "doc_items") and chunk.meta.doc_items is not None:
+                chunk_metadata["doc_items_count"] = len(cast(Sized, chunk.meta.doc_items))
 
         chunks.append(
             Chunk(
@@ -275,7 +268,6 @@ def _simple_chunk_text(
             if sent.strip():
                 chunks.append(Chunk(text=sent.strip(), metadata={"index": i, "strategy": "sentence"}))
     else:
-        # Token-based chunking using tiktoken
         enc = tiktoken.get_encoding("cl100k_base")
         tokens = enc.encode(text)
 
@@ -292,7 +284,6 @@ def _simple_chunk_text(
                 )
             )
 
-            # Move start forward, accounting for overlap
             start = end - chunk_overlap if end < len(tokens) else end
 
     return chunks
@@ -317,7 +308,6 @@ def parse_document(config: ParserConfig, parse_input: ParseInput) -> ParseOutput
     Raises:
         ValueError: If format is unsupported or not in allowed formats.
     """
-    # Detect format from filename
     input_format = _get_format_from_filename(parse_input.filename)
     if input_format is None:
         ext = Path(parse_input.filename).suffix.lower().lstrip(".")
@@ -325,17 +315,14 @@ def parse_document(config: ParserConfig, parse_input: ParseInput) -> ParseOutput
 
     format_str = Path(parse_input.filename).suffix.lower().lstrip(".")
 
-    # Check if format is in supported formats
     if format_str not in [f.lower() for f in config.supported_formats]:
         raise ValueError(f"Format '{format_str}' not in supported formats: {config.supported_formats}")
 
-    # Decode content
     if _is_binary_format(format_str):
         content_bytes = base64.b64decode(parse_input.content)
     else:
         content_bytes = parse_input.content.encode("utf-8")
 
-    # Write to temp file for docling (it needs a file path)
     suffix = Path(parse_input.filename).suffix
     tmp_path: str | None = None
     try:
@@ -343,18 +330,14 @@ def parse_document(config: ParserConfig, parse_input: ParseInput) -> ParseOutput
             tmp.write(content_bytes)
             tmp_path = tmp.name
 
-        # Create converter and parse
         converter = _create_converter(config)
         result = converter.convert(tmp_path)
         doc = result.document
 
-        # Extract text as markdown
         text = doc.export_to_markdown()
 
-        # Extract metadata
         metadata = _extract_metadata(doc, format_str)
 
-        # Generate chunks
         chunks = _chunk_document(doc)
 
         return ParseOutput(
