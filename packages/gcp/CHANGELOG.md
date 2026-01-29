@@ -1,3 +1,15 @@
+## gcp-v0.65.0 (2026-01-29)
+
+### Feat
+
+- **kubernetes**: add kubernetes provider with lightkube
+
+## gcp-v0.55.0 (2026-01-29)
+
+### Feat
+
+- **gcp**: add logs() and health() methods to GKE resource
+
 ## gcp-v0.64.0 (2026-01-29)
 
 ### Feat
