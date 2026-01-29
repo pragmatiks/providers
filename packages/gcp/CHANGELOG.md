@@ -1,3 +1,9 @@
+## gcp-v0.55.0 (2026-01-29)
+
+### Feat
+
+- **gcp**: add logs() and health() methods to GKE resource
+
 ## gcp-v0.54.0 (2026-01-29)
 
 ### Feat
