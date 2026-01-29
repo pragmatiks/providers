@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import ClassVar
 
 from lightkube.resources.core_v1 import Service as K8sService
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import BaseModel, Field as PydanticField, model_validator
 from pragma_sdk import Config, Dependency, HealthStatus, LogEntry, Outputs, Resource
 
 from gcp_provider import GKE
@@ -80,6 +80,15 @@ class DatabaseConfig(Config):
     resources: ResourceConfig | None = None
     api_key: str | None = None
     generate_api_key: bool = False
+
+    @model_validator(mode="after")
+    def validate_api_key_options(self) -> "DatabaseConfig":
+        """Validate that api_key and generate_api_key are mutually exclusive."""
+        if self.api_key is not None and self.generate_api_key:
+            msg = "Cannot set both 'api_key' and 'generate_api_key'; use one or the other"
+            raise ValueError(msg)
+
+        return self
 
 
 class DatabaseOutputs(Outputs):
@@ -275,7 +284,7 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
 
         container = ContainerConfig(
             name="qdrant",
-            image="qdrant/qdrant:latest",
+            image="qdrant/qdrant:v1.12.1",
             ports=[
                 ContainerPortConfig(name="rest", container_port=6333),
                 ContainerPortConfig(name="grpc", container_port=6334),

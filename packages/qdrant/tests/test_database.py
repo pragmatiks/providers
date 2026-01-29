@@ -254,6 +254,16 @@ def test_resource_config_defaults() -> None:
     assert resources.cpu == "1"
 
 
+def test_api_key_and_generate_api_key_mutually_exclusive() -> None:
+    """Cannot set both api_key and generate_api_key."""
+    with pytest.raises(ValueError, match="Cannot set both"):
+        DatabaseConfig(
+            cluster=Dependency(provider="gcp", resource="gke", name="test"),
+            api_key="my-key",
+            generate_api_key=True,
+        )
+
+
 async def test_build_outputs(mocker: "MockerFixture") -> None:
     """_build_outputs creates correct external URLs."""
     mocker.patch(
