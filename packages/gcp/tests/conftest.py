@@ -108,25 +108,51 @@ def mock_sqladmin_service(mocker: "MockerFixture") -> MagicMock:
         "name": "test-db",
         "state": "RUNNABLE",
         "settings": {"tier": "db-f1-micro"},
+        "databaseVersion": "POSTGRES_15",
+        "region": "europe-west4",
         "ipAddresses": [{"type": "PRIMARY", "ipAddress": "10.0.0.5"}],
     }
 
     mock_service.instances().get().execute.return_value = mock_instance
     mock_service.instances().insert().execute.return_value = {"name": "operation-123"}
     mock_service.instances().delete().execute.return_value = {"name": "operation-456"}
+
+    mock_service.databases().get().execute.return_value = None
     mock_service.databases().insert().execute.return_value = {"name": "operation-789"}
+    mock_service.databases().delete().execute.return_value = {"name": "operation-abc"}
+
+    mock_service.users().list().execute.return_value = {"items": []}
+    mock_service.users().insert().execute.return_value = {"name": "operation-def"}
+    mock_service.users().update().execute.return_value = {"name": "operation-ghi"}
+    mock_service.users().delete().execute.return_value = {"name": "operation-jkl"}
 
     mocker.patch(
-        "gcp_provider.resources.cloudsql.discovery.build",
+        "gcp_provider.resources.cloudsql.database_instance.discovery.build",
+        return_value=mock_service,
+    )
+    mocker.patch(
+        "gcp_provider.resources.cloudsql.database.discovery.build",
+        return_value=mock_service,
+    )
+    mocker.patch(
+        "gcp_provider.resources.cloudsql.user.discovery.build",
         return_value=mock_service,
     )
 
     mock_credentials = mocker.MagicMock()
     mocker.patch(
-        "gcp_provider.resources.cloudsql.service_account.Credentials.from_service_account_info",
+        "gcp_provider.resources.cloudsql.database_instance.service_account.Credentials.from_service_account_info",
+        return_value=mock_credentials,
+    )
+    mocker.patch(
+        "gcp_provider.resources.cloudsql.database.service_account.Credentials.from_service_account_info",
+        return_value=mock_credentials,
+    )
+    mocker.patch(
+        "gcp_provider.resources.cloudsql.user.service_account.Credentials.from_service_account_info",
         return_value=mock_credentials,
     )
 
-    mocker.patch("gcp_provider.resources.cloudsql.asyncio.sleep", return_value=None)
+    mocker.patch("gcp_provider.resources.cloudsql.database_instance.asyncio.sleep", return_value=None)
 
     return mock_service

@@ -18,8 +18,8 @@ from pydantic import Field, field_validator
 from pragma_sdk import Config, HealthStatus, LogEntry, Outputs, Resource
 
 
-class CloudSQLConfig(Config):
-    """Configuration for a Cloud SQL instance.
+class DatabaseInstanceConfig(Config):
+    """Configuration for a Cloud SQL database instance.
 
     Attributes:
         project_id: GCP project ID where the instance will be created.
@@ -28,7 +28,6 @@ class CloudSQLConfig(Config):
         instance_name: Name of the Cloud SQL instance (must be unique per project).
         database_version: Database version (e.g., POSTGRES_15, POSTGRES_14, MYSQL_8_0).
         tier: Machine tier (e.g., db-f1-micro, db-custom-1-3840).
-        database_name: Name of the database to create.
         availability_type: ZONAL (single zone) or REGIONAL (high availability).
         backup_enabled: Whether automatic backups are enabled.
         deletion_protection: Whether deletion protection is enabled.
@@ -42,7 +41,6 @@ class CloudSQLConfig(Config):
     instance_name: str
     database_version: str = "POSTGRES_15"
     tier: str = "db-f1-micro"
-    database_name: str = "app"
     availability_type: Literal["ZONAL", "REGIONAL"] = "ZONAL"
     backup_enabled: bool = True
     deletion_protection: bool = False
@@ -80,15 +78,13 @@ class CloudSQLConfig(Config):
         return v
 
 
-class CloudSQLOutputs(Outputs):
-    """Outputs from Cloud SQL instance creation.
+class DatabaseInstanceOutputs(Outputs):
+    """Outputs from Cloud SQL database instance creation.
 
     Attributes:
         connection_name: Cloud SQL connection name (project:region:instance).
         public_ip: Public IP address (if enabled).
         private_ip: Private IP address (if enabled).
-        database_name: Name of the created database.
-        url: Connection URL format (without credentials).
         ready: Whether the instance is running and accessible.
         console_url: URL to view instance in GCP Console.
         logs_url: URL to view instance logs in Cloud Logging.
@@ -97,8 +93,6 @@ class CloudSQLOutputs(Outputs):
     connection_name: str
     public_ip: str | None
     private_ip: str | None
-    database_name: str
-    url: str
     ready: bool
     console_url: str
     logs_url: str
@@ -114,20 +108,20 @@ def _generate_root_password() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(24))
 
 
-class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
+class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]):
     """GCP Cloud SQL database instance resource.
 
     Creates and manages Cloud SQL instances (PostgreSQL, MySQL, SQL Server)
     using user-provided service account credentials (multi-tenant SaaS pattern).
 
     Lifecycle:
-        - on_create: Creates instance, waits for RUNNABLE state, creates database
+        - on_create: Creates instance, waits for RUNNABLE state
         - on_update: Limited updates (some require recreation)
         - on_delete: Deletes instance (respects deletion_protection)
     """
 
     provider: ClassVar[str] = "gcp"
-    resource: ClassVar[str] = "cloudsql"
+    resource: ClassVar[str] = "cloudsql/database_instance"
 
     def _get_credentials(self) -> service_account.Credentials:
         """Get credentials from config."""
@@ -146,7 +140,7 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
         """Build Cloud SQL connection name."""
         return f"{self.config.project_id}:{self.config.region}:{self.config.instance_name}"
 
-    def _build_outputs(self, instance: dict, database_name: str) -> CloudSQLOutputs:
+    def _build_outputs(self, instance: dict) -> DatabaseInstanceOutputs:
         """Build outputs from instance dict."""
         project = self.config.project_id
         name = self.config.instance_name
@@ -154,23 +148,11 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
         public_ip = None
         private_ip = None
         for ip_addr in instance.get("ipAddresses", []):
-            if ip_addr.get("type") == "PRIMARY":
-                public_ip = ip_addr.get("ipAddress")
-            elif ip_addr.get("type") == "PRIVATE":
-                private_ip = ip_addr.get("ipAddress")
-
-        match self.config.database_version.split("_")[0]:
-            case "POSTGRES":
-                db_type, port = "postgresql", "5432"
-            case "MYSQL":
-                db_type, port = "mysql", "3306"
-            case "SQLSERVER":
-                db_type, port = "sqlserver", "1433"
-            case _:
-                db_type, port = "postgresql", "5432"
-
-        host = public_ip or private_ip or self._connection_name()
-        url = f"{db_type}://USER:PASSWORD@{host}:{port}/{database_name}"
+            match ip_addr.get("type"):
+                case "PRIMARY":
+                    public_ip = ip_addr.get("ipAddress")
+                case "PRIVATE":
+                    private_ip = ip_addr.get("ipAddress")
 
         console_url = f"https://console.cloud.google.com/sql/instances/{name}/overview?project={project}"
         logs_url = (
@@ -180,12 +162,10 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
             f"?project={project}"
         )
 
-        return CloudSQLOutputs(
+        return DatabaseInstanceOutputs(
             connection_name=self._connection_name(),
             public_ip=public_ip,
             private_ip=private_ip,
-            database_name=database_name,
-            url=url,
             ready=instance.get("state") == "RUNNABLE",
             console_url=console_url,
             logs_url=logs_url,
@@ -217,12 +197,12 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
 
             state = instance.get("state")
 
-            if state == "RUNNABLE":
-                return instance
-
-            if state in ("FAILED", "SUSPENDED"):
-                msg = f"Instance entered {state} state"
-                raise RuntimeError(msg)
+            match state:
+                case "RUNNABLE":
+                    return instance
+                case "FAILED" | "SUSPENDED":
+                    msg = f"Instance entered {state} state"
+                    raise RuntimeError(msg)
 
             await asyncio.sleep(_POLL_INTERVAL_SECONDS)
 
@@ -273,32 +253,13 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
             "rootPassword": _generate_root_password(),
         }
 
-    async def _create_database(self, service: Any) -> None:
-        """Create the application database."""
-        database_body = {
-            "name": self.config.database_name,
-            "project": self.config.project_id,
-            "instance": self.config.instance_name,
-        }
-
-        try:
-            request = service.databases().insert(
-                project=self.config.project_id,
-                instance=self.config.instance_name,
-                body=database_body,
-            )
-            await self._run_in_executor(request.execute)
-        except HttpError as e:
-            if "already exists" not in str(e).lower():
-                raise
-
-    async def on_create(self) -> CloudSQLOutputs:
+    async def on_create(self) -> DatabaseInstanceOutputs:
         """Create Cloud SQL instance and wait for RUNNABLE state.
 
         Idempotent: If instance already exists, returns its current state.
 
         Returns:
-            CloudSQLOutputs with instance details.
+            DatabaseInstanceOutputs with instance details.
         """
         service = self._get_service()
 
@@ -310,11 +271,9 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
 
         instance = await self._wait_for_runnable(service)
 
-        await self._create_database(service)
+        return self._build_outputs(instance)
 
-        return self._build_outputs(instance, self.config.database_name)
-
-    async def on_update(self, previous_config: CloudSQLConfig) -> CloudSQLOutputs:
+    async def on_update(self, previous_config: DatabaseInstanceConfig) -> DatabaseInstanceOutputs:
         """Update instance configuration.
 
         Most Cloud SQL instance properties require recreation. This method validates
@@ -324,7 +283,7 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
             previous_config: The previous configuration before update.
 
         Returns:
-            CloudSQLOutputs with current instance state.
+            DatabaseInstanceOutputs with current instance state.
 
         Raises:
             ValueError: If immutable fields changed (requires delete + create).
@@ -355,7 +314,7 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
             msg = "Instance not found"
             raise RuntimeError(msg)
 
-        return self._build_outputs(instance, self.config.database_name)
+        return self._build_outputs(instance)
 
     async def on_delete(self) -> None:
         """Delete instance.
@@ -388,23 +347,23 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
 
         state = instance.get("state")
 
-        if state == "RUNNABLE":
-            return HealthStatus(
-                status="healthy",
-                message="Instance is running",
-                details={"tier": instance.get("settings", {}).get("tier")},
-            )
-
-        if state in ("PENDING_CREATE", "MAINTENANCE"):
-            return HealthStatus(
-                status="degraded",
-                message=f"Instance is {state.lower().replace('_', ' ')}",
-            )
-
-        return HealthStatus(
-            status="unhealthy",
-            message=f"Instance state: {state}",
-        )
+        match state:
+            case "RUNNABLE":
+                return HealthStatus(
+                    status="healthy",
+                    message="Instance is running",
+                    details={"tier": instance.get("settings", {}).get("tier")},
+                )
+            case "PENDING_CREATE" | "MAINTENANCE":
+                return HealthStatus(
+                    status="degraded",
+                    message=f"Instance is {state.lower().replace('_', ' ')}",
+                )
+            case _:
+                return HealthStatus(
+                    status="unhealthy",
+                    message=f"Instance state: {state}",
+                )
 
     async def logs(
         self,
@@ -412,7 +371,8 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
         tail: int = 100,
     ) -> AsyncIterator[LogEntry]:
         """Fetch instance logs from Cloud Logging."""
-        logging_client = LoggingClient(credentials=self._get_credentials(), project=self.config.project_id)
+        credentials = self._get_credentials()
+        project = self.config.project_id
 
         filter_parts = [
             'resource.type="cloudsql_database"',
@@ -424,11 +384,17 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
 
         filter_str = " AND ".join(filter_parts)
 
-        entries = logging_client.list_entries(
-            filter_=filter_str,
-            order_by="timestamp desc",
-            max_results=tail,
-        )
+        def fetch_logs() -> list:
+            logging_client = LoggingClient(credentials=credentials, project=project)
+            return list(
+                logging_client.list_entries(
+                    filter_=filter_str,
+                    order_by="timestamp desc",
+                    max_results=tail,
+                )
+            )
+
+        entries = await self._run_in_executor(fetch_logs)
 
         for entry in entries:
             level = "info"
@@ -436,12 +402,13 @@ class CloudSQL(Resource[CloudSQLConfig, CloudSQLOutputs]):
             if hasattr(entry, "severity"):
                 severity = str(entry.severity).lower()
 
-                if "error" in severity or "critical" in severity:
-                    level = "error"
-                elif "warn" in severity:
-                    level = "warn"
-                elif "debug" in severity:
-                    level = "debug"
+                match severity:
+                    case s if "error" in s or "critical" in s:
+                        level = "error"
+                    case s if "warn" in s:
+                        level = "warn"
+                    case s if "debug" in s:
+                        level = "debug"
 
             yield LogEntry(
                 timestamp=entry.timestamp,
