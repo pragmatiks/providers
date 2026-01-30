@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "pragmatiks-sdk>=0.6.0",
-    "agno[anthropic]>=2.4.0",
+    "agno[anthropic,openai]>=2.4.0",
 ]
 
 authors = [
@@ -22,7 +22,6 @@ dev = [
 ]
 
 [tool.pragma]
-# Provider metadata - used by the platform for discovery and deployment
 provider = "agno"
 package = "agno_provider"
 

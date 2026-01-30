@@ -1,7 +1,4 @@
-"""Resource definitions for agno provider.
-
-Import and export your Resource classes here for discovery by the runtime.
-"""
+"""Resource definitions for agno provider."""
 
 from agno_provider.resources.agent import (
     Agent,
@@ -12,6 +9,9 @@ from agno_provider.resources.models import (
     AnthropicModel,
     AnthropicModelConfig,
     AnthropicModelOutputs,
+    OpenAIModel,
+    OpenAIModelConfig,
+    OpenAIModelOutputs,
 )
 
 __all__ = [
@@ -21,4 +21,7 @@ __all__ = [
     "AnthropicModel",
     "AnthropicModelConfig",
     "AnthropicModelOutputs",
+    "OpenAIModel",
+    "OpenAIModelConfig",
+    "OpenAIModelOutputs",
 ]

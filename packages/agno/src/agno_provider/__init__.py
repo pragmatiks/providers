@@ -13,13 +13,16 @@ from agno_provider.resources import (
     AnthropicModel,
     AnthropicModelConfig,
     AnthropicModelOutputs,
+    OpenAIModel,
+    OpenAIModelConfig,
+    OpenAIModelOutputs,
 )
 
 agno = Provider(name="agno")
 
-# Register resources
 agno.resource("agent")(Agent)
 agno.resource("models/anthropic")(AnthropicModel)
+agno.resource("models/openai")(OpenAIModel)
 
 __all__ = [
     "agno",
@@ -29,4 +32,7 @@ __all__ = [
     "AnthropicModel",
     "AnthropicModelConfig",
     "AnthropicModelOutputs",
+    "OpenAIModel",
+    "OpenAIModelConfig",
+    "OpenAIModelOutputs",
 ]

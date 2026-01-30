@@ -30,7 +30,11 @@ def mock_gke_resource(mocker: "MockerFixture", mock_gke_outputs: Any) -> Any:
 
 @pytest.fixture
 def mock_model_outputs(mocker: "MockerFixture") -> Any:
+    from agno.models.openai import OpenAIChat
+
     outputs = mocker.MagicMock()
+    outputs.model = OpenAIChat(id="gpt-4o", api_key="sk-test")
+    outputs.model_id = "gpt-4o"
     outputs.url = "http://anthropic-messages.default.svc.cluster.local"
     return outputs
 
