@@ -59,12 +59,12 @@ def connection_info(database_version: str) -> tuple[str, str]:
 
 
 async def execute(request: Any, ignore_404: bool = False, ignore_exists: bool = False) -> Any:
-    """Execute a GCP API request, optionally ignoring 404 or 'already exists' errors."""
+    """Execute a GCP API request, optionally ignoring 404 or 409 (conflict/exists) errors."""
     try:
         return await run_in_executor(request.execute)
     except HttpError as e:
         if ignore_404 and e.resp.status == 404:
             return None
-        if ignore_exists and "already exists" in str(e).lower():
+        if ignore_exists and e.resp.status == 409:
             return None
         raise
