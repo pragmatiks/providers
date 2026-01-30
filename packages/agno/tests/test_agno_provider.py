@@ -6,6 +6,9 @@ from agno_provider import (
     Agent,
     AgentConfig,
     AgentOutputs,
+    OpenAIModel,
+    OpenAIModelConfig,
+    OpenAIModelOutputs,
     agno,
 )
 
@@ -17,7 +20,6 @@ def test_provider_name() -> None:
 
 def test_agent_registered() -> None:
     """Agent resource is registered with provider."""
-    # The resource decorator registers the class
     assert Agent.provider == "agno"
     assert Agent.resource == "agent"
 
@@ -30,3 +32,19 @@ def test_agent_config_model() -> None:
 def test_agent_outputs_model() -> None:
     """AgentOutputs can be exported."""
     assert AgentOutputs is not None
+
+
+def test_openai_model_registered() -> None:
+    """OpenAI model resource is registered with provider."""
+    assert OpenAIModel.provider == "agno"
+    assert OpenAIModel.resource == "models/openai"
+
+
+def test_openai_model_config_model() -> None:
+    """OpenAIModelConfig can be exported."""
+    assert OpenAIModelConfig is not None
+
+
+def test_openai_model_outputs_model() -> None:
+    """OpenAIModelOutputs can be exported."""
+    assert OpenAIModelOutputs is not None
