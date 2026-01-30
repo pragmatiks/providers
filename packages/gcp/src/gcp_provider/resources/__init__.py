@@ -3,6 +3,17 @@
 Import and export your Resource classes here for discovery by the runtime.
 """
 
+from gcp_provider.resources.cloudsql import (
+    Database,
+    DatabaseConfig,
+    DatabaseInstance,
+    DatabaseInstanceConfig,
+    DatabaseInstanceOutputs,
+    DatabaseOutputs,
+    User,
+    UserConfig,
+    UserOutputs,
+)
 from gcp_provider.resources.gke import (
     GKE,
     GKEConfig,
@@ -15,10 +26,19 @@ from gcp_provider.resources.secret import (
 )
 
 __all__ = [
+    "Database",
+    "DatabaseConfig",
+    "DatabaseInstance",
+    "DatabaseInstanceConfig",
+    "DatabaseInstanceOutputs",
+    "DatabaseOutputs",
     "GKE",
     "GKEConfig",
     "GKEOutputs",
     "Secret",
     "SecretConfig",
     "SecretOutputs",
+    "User",
+    "UserConfig",
+    "UserOutputs",
 ]
