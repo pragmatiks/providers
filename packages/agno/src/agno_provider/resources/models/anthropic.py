@@ -78,10 +78,7 @@ class AnthropicModel(Resource[AnthropicModelConfig, AnthropicModelOutputs]):
         Returns:
             Configured Claude instance ready for use with Agno agents.
         """
-        kwargs = self.config.model_dump(exclude_none=True)
-        kwargs["api_key"] = str(self.config.api_key)
-
-        return Claude(**kwargs)
+        return Claude(**self.config.model_dump(exclude_none=True))
 
     async def on_create(self) -> AnthropicModelOutputs:
         """Create resource and return serializable outputs."""
