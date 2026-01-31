@@ -6,9 +6,10 @@ tasks:
     desc: Format Python code with ruff
 
   check:
-    desc: Check Python code with ruff
+    desc: Check Python code with ruff and ty
     cmds:
       - env -u VIRTUAL_ENV uv run ruff check --fix .
+      - env -u VIRTUAL_ENV uv run ty check src/
 
   test:
     cmd: env -u VIRTUAL_ENV uv run pytest tests/ --cov=agno_provider --cov-report=term-missing {{.CLI_ARGS}}

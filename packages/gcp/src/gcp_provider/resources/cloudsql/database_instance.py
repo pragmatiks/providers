@@ -221,7 +221,7 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
             return HealthStatus(status="unhealthy", message="Instance not found")
 
         state = instance.get("state")
-        status_map = {
+        status_map: dict[str, tuple[Literal["healthy", "unhealthy", "degraded"], str]] = {
             "RUNNABLE": ("healthy", "Instance is running"),
             "PENDING_CREATE": ("degraded", "Instance is pending create"),
             "MAINTENANCE": ("degraded", "Instance is in maintenance"),
@@ -274,7 +274,7 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
             )
 
     @staticmethod
-    def _severity_to_level(entry: Any) -> str:
+    def _severity_to_level(entry: Any) -> Literal["debug", "info", "warn", "error"]:
         """Convert Cloud Logging severity to log level."""
         if not hasattr(entry, "severity"):
             return "info"

@@ -45,8 +45,26 @@ preview = true
 
 [tool.ty.environment]
 python-version = "3.13"
+extra-paths = [
+    "packages/gcp/src",
+    "packages/kubernetes/src",
+    "packages/qdrant/src",
+    "packages/agno/src",
+]
+root = [
+    "packages/gcp/src",
+    "packages/kubernetes/src",
+    "packages/qdrant/src",
+    "packages/agno/src",
+]
 
 [tool.ty.src]
+include = [
+    "packages/gcp/src",
+    "packages/kubernetes/src",
+    "packages/qdrant/src",
+    "packages/agno/src",
+]
 exclude = ["**/tests/**", "**/__pycache__/**"]
 
 [tool.pytest.ini_options]

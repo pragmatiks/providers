@@ -1,10 +1,12 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.0
+    rev: v0.14.2
     hooks:
-      - id: ruff
-        args: [--fix]
+      - id: ruff-check
+        name: Ruff linter
+        args: [--fix, --unsafe-fixes]
       - id: ruff-format
+        name: Ruff formatter
 
   - repo: local
     hooks:
@@ -22,12 +24,6 @@ repos:
         types: [python]
         pass_filenames: true
         stages: [pre-commit]
-      - id: ty
-        name: ty type checker
-        entry: uvx ty check
-        language: system
-        types: [python]
-        pass_filenames: false
 
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v4.11.2
