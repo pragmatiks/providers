@@ -25,6 +25,7 @@ from gcp_provider.resources.secret import (
     SecretOutputs,
 )
 
+
 __all__ = [
     "Database",
     "DatabaseConfig",

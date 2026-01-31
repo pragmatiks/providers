@@ -18,9 +18,9 @@ from qdrant_provider.resources import (
     VectorConfig,
 )
 
+
 qdrant = Provider(name="qdrant")
 
-# Register resources
 qdrant.resource("collection")(Collection)
 qdrant.resource("database")(Database)
 

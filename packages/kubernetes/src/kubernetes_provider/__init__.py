@@ -22,6 +22,7 @@ from kubernetes_provider.resources import (
     StatefulSetOutputs,
 )
 
+
 kubernetes = Provider(name="kubernetes")
 
 kubernetes.resource("service")(Service)

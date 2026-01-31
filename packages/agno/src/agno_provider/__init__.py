@@ -18,6 +18,7 @@ from agno_provider.resources import (
     OpenAIModelOutputs,
 )
 
+
 agno = Provider(name="agno")
 
 agno.resource("agent")(Agent)

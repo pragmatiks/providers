@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic import Field
 from pragma_sdk import Config, Dependency, Outputs, Resource
+from pydantic import Field
 
 from gcp_provider.resources.cloudsql.database_instance import DatabaseInstance
 from gcp_provider.resources.cloudsql.helpers import (
@@ -57,6 +57,9 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         """Create database in the Cloud SQL instance.
 
         Idempotent: If database already exists, returns its current state.
+
+        Returns:
+            DatabaseOutputs with database details.
         """
         instance_resource = await self.config.instance.resolve()
         inst = instance_resource.config
@@ -82,6 +85,12 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
 
         If instance changed, delete from old instance and create in new one.
         database_name cannot be changed (truly immutable).
+
+        Returns:
+            DatabaseOutputs with database details.
+
+        Raises:
+            ValueError: If database_name changed (immutable field).
         """
         if previous_config.database_name != self.config.database_name:
             msg = "Cannot change database_name; delete and recreate resource"
@@ -117,7 +126,11 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         )
 
     async def _build_outputs(self, inst: Any, service: Any) -> DatabaseOutputs:
-        """Fetch instance info and build outputs."""
+        """Fetch instance info and build outputs.
+
+        Returns:
+            DatabaseOutputs with connection details.
+        """
         instance = await execute(
             service.instances().get(
                 project=inst.project_id,

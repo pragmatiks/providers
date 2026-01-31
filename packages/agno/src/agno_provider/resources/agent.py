@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pragma_sdk import Config, Dependency, Outputs, Resource
 
+
 if TYPE_CHECKING:
     from gcp_provider import GKE
 
@@ -29,7 +30,7 @@ class AgentConfig(Config):
         replicas: Number of agent replicas.
     """
 
-    cluster: Dependency["GKE"]
+    cluster: Dependency[GKE]
     model: Dependency
     embeddings: Dependency | None = None
     vector_store: Dependency | None = None
@@ -50,9 +51,8 @@ class AgentOutputs(Outputs):
     ready: bool
 
 
-# Polling configuration for Deployment readiness
 _POLL_INTERVAL_SECONDS = 5
-_MAX_POLL_ATTEMPTS = 60  # 60 * 5s = 5 minutes max wait
+_MAX_POLL_ATTEMPTS = 60
 
 
 class Agent(Resource[AgentConfig, AgentOutputs]):
@@ -73,11 +73,19 @@ class Agent(Resource[AgentConfig, AgentOutputs]):
     resource: ClassVar[str] = "agent"
 
     def _get_deployment_name(self) -> str:
-        """Get Kubernetes Deployment name based on resource name."""
+        """Get Kubernetes Deployment name based on resource name.
+
+        Returns:
+            The deployment name prefixed with 'agno-'.
+        """
         return f"agno-{self.name}"
 
     def _get_namespace(self) -> str:
-        """Get Kubernetes namespace."""
+        """Get Kubernetes namespace.
+
+        Returns:
+            The namespace name.
+        """
         return "default"
 
     async def _get_kubeconfig(self) -> str:
@@ -85,6 +93,9 @@ class Agent(Resource[AgentConfig, AgentOutputs]):
 
         Returns:
             Kubeconfig content as string.
+
+        Raises:
+            RuntimeError: If GKE cluster outputs are not available.
         """
         cluster = await self.config.cluster.resolve()
         outputs = cluster.outputs
@@ -128,24 +139,20 @@ users:
         """
         env_vars: list[dict[str, str]] = []
 
-        # Model URL (required)
         model = await self.config.model.resolve()
         if model.outputs is not None and hasattr(model.outputs, "url"):
             env_vars.append({"name": "AGNO_MODEL_URL", "value": model.outputs.url})
 
-        # Embeddings URL (optional)
         if self.config.embeddings is not None:
             embeddings = await self.config.embeddings.resolve()
             if embeddings.outputs is not None and hasattr(embeddings.outputs, "url"):
                 env_vars.append({"name": "AGNO_EMBEDDINGS_URL", "value": embeddings.outputs.url})
 
-        # Vector store URL (optional)
         if self.config.vector_store is not None:
             vector_store = await self.config.vector_store.resolve()
             if vector_store.outputs is not None and hasattr(vector_store.outputs, "url"):
                 env_vars.append({"name": "AGNO_VECTOR_STORE_URL", "value": vector_store.outputs.url})
 
-        # Instructions (optional)
         if self.config.instructions:
             env_vars.append({"name": "AGNO_INSTRUCTIONS", "value": self.config.instructions})
 
@@ -291,7 +298,15 @@ users:
         return result
 
     async def _run_kubectl(self, args: list[str], kubeconfig_path: str) -> subprocess.CompletedProcess:
-        """Run kubectl command with kubeconfig."""
+        """Run kubectl command with kubeconfig.
+
+        Args:
+            args: kubectl arguments.
+            kubeconfig_path: Path to kubeconfig file.
+
+        Returns:
+            Completed process result.
+        """
         return await self._run_command(["kubectl", *args], kubeconfig_path, "kubectl")
 
     async def _apply_manifest(self, manifest: dict[str, Any], kubeconfig_path: str) -> None:
@@ -325,7 +340,7 @@ users:
                 kubeconfig_path,
             )
         except RuntimeError:
-            pass  # Resource may not exist
+            pass
 
     async def _wait_for_ready(self, kubeconfig_path: str) -> bool:
         """Wait for Deployment to be ready.
@@ -360,7 +375,7 @@ users:
                 if ready_replicas >= self.config.replicas:
                     return True
             except (RuntimeError, ValueError):
-                pass  # Deployment may not exist yet or parsing failed
+                pass
 
             await asyncio.sleep(_POLL_INTERVAL_SECONDS)
 
@@ -384,7 +399,11 @@ users:
         return False
 
     def _build_outputs(self) -> AgentOutputs:
-        """Build outputs with in-cluster service URL."""
+        """Build outputs with in-cluster service URL.
+
+        Returns:
+            AgentOutputs with the service URL and ready status.
+        """
         deployment_name = self._get_deployment_name()
         namespace = self._get_namespace()
 
@@ -428,13 +447,14 @@ users:
 
         Returns:
             AgentOutputs with in-cluster service URL.
+
+        Raises:
+            ValueError: If cluster dependency changed (immutable field).
         """
-        # Check for immutable field changes
         if previous_config.cluster.id != self.config.cluster.id:
             msg = "Cannot change cluster; delete and recreate resource"
             raise ValueError(msg)
 
-        # If nothing significant changed, return existing outputs
         if self.outputs is not None:
             previous_dict = previous_config.model_dump(exclude={"cluster", "model", "embeddings", "vector_store"})
             current_dict = self.config.model_dump(exclude={"cluster", "model", "embeddings", "vector_store"})

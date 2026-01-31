@@ -12,6 +12,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from lightkube import AsyncClient, KubeConfig
 
+
 if TYPE_CHECKING:
     from gcp_provider import GKEOutputs
 
@@ -41,7 +42,7 @@ def _get_access_token(credentials: dict[str, Any] | str) -> str:
 
 
 def create_client_from_gke(
-    outputs: "GKEOutputs",
+    outputs: GKEOutputs,
     credentials: dict[str, Any] | str,
 ) -> AsyncClient:
     """Create a lightkube AsyncClient from GKE cluster outputs.

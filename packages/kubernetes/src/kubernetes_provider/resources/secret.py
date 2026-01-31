@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import ClassVar
 
 from gcp_provider import GKE
@@ -66,7 +66,14 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
     resource: ClassVar[str] = "secret"
 
     async def _get_client(self):
-        """Get lightkube client from GKE cluster credentials."""
+        """Get lightkube client from GKE cluster credentials.
+
+        Returns:
+            Lightkube async client configured for the GKE cluster.
+
+        Raises:
+            RuntimeError: If GKE cluster outputs are not available.
+        """
         cluster = await self.config.cluster.resolve()
         outputs = cluster.outputs
 
@@ -90,7 +97,11 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         return {k: base64.b64encode(v.encode()).decode() for k, v in data.items()}
 
     def _build_secret(self) -> K8sSecret:
-        """Build Kubernetes Secret object from config."""
+        """Build Kubernetes Secret object from config.
+
+        Returns:
+            Kubernetes Secret object ready to apply.
+        """
         secret = K8sSecret(
             metadata=ObjectMeta(
                 name=self.name,
@@ -108,7 +119,11 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         return secret
 
     def _build_outputs(self) -> SecretOutputs:
-        """Build outputs with decoded data."""
+        """Build outputs with decoded data.
+
+        Returns:
+            SecretOutputs with secret details.
+        """
         merged_data: dict[str, str] = {}
 
         if self.config.data:
@@ -170,6 +185,9 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         """Delete Kubernetes Secret.
 
         Idempotent: Succeeds if secret doesn't exist.
+
+        Raises:
+            ApiError: If deletion fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -188,6 +206,9 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
 
         Returns:
             HealthStatus indicating healthy/unhealthy.
+
+        Raises:
+            ApiError: If health check fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -231,7 +252,7 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
             Nothing - secrets don't have logs.
         """
         yield LogEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             level="info",
             message="Secrets do not produce logs",
         )

@@ -18,6 +18,7 @@ from gcp_provider.resources.cloudsql.user import (
     UserOutputs,
 )
 
+
 __all__ = [
     "Database",
     "DatabaseConfig",

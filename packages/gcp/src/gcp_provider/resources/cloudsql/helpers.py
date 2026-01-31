@@ -10,6 +10,7 @@ from google.oauth2 import service_account
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
+
 DB_CONNECTION_INFO = {
     "POSTGRES": ("postgresql", "5432"),
     "MYSQL": ("mysql", "3306"),
@@ -18,7 +19,11 @@ DB_CONNECTION_INFO = {
 
 
 def get_credentials(credentials_data: dict[str, Any] | str) -> service_account.Credentials:
-    """Create GCP credentials from config data."""
+    """Create GCP credentials from config data.
+
+    Returns:
+        GCP service account credentials.
+    """
     if isinstance(credentials_data, str):
         credentials_data = json.loads(credentials_data)
 
@@ -26,18 +31,30 @@ def get_credentials(credentials_data: dict[str, Any] | str) -> service_account.C
 
 
 def get_sqladmin_service(credentials: service_account.Credentials) -> Any:
-    """Get Cloud SQL Admin API service."""
+    """Get Cloud SQL Admin API service.
+
+    Returns:
+        Cloud SQL Admin API service resource.
+    """
     return discovery.build("sqladmin", "v1", credentials=credentials)
 
 
 async def run_in_executor(func: Any) -> Any:
-    """Run a blocking function in the default executor."""
+    """Run a blocking function in the default executor.
+
+    Returns:
+        Result of the function execution.
+    """
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, func)
 
 
 def extract_ips(instance: dict) -> tuple[str | None, str | None]:
-    """Extract public and private IPs from instance dict."""
+    """Extract public and private IPs from instance dict.
+
+    Returns:
+        Tuple of (public_ip, private_ip), either may be None.
+    """
     public_ip = None
     private_ip = None
 
@@ -53,13 +70,24 @@ def extract_ips(instance: dict) -> tuple[str | None, str | None]:
 
 
 def connection_info(database_version: str) -> tuple[str, str]:
-    """Get connection type and port from database version string."""
+    """Get connection type and port from database version string.
+
+    Returns:
+        Tuple of (db_type, port) for the database family.
+    """
     db_family = database_version.split("_")[0]
     return DB_CONNECTION_INFO.get(db_family, ("postgresql", "5432"))
 
 
 async def execute(request: Any, ignore_404: bool = False, ignore_exists: bool = False) -> Any:
-    """Execute a GCP API request, optionally ignoring 404 or 409 (conflict/exists) errors."""
+    """Execute a GCP API request, optionally ignoring 404 or 409 (conflict/exists) errors.
+
+    Returns:
+        API response, or None if error was ignored.
+
+    Raises:
+        HttpError: If request fails and error is not ignored.
+    """
     try:
         return await run_in_executor(request.execute)
     except HttpError as e:

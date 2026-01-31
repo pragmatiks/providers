@@ -7,13 +7,13 @@ using user-provided credentials (multi-tenant SaaS pattern).
 from pragma_sdk import Provider
 
 from gcp_provider.resources import (
+    GKE,
     Database,
     DatabaseConfig,
     DatabaseInstance,
     DatabaseInstanceConfig,
     DatabaseInstanceOutputs,
     DatabaseOutputs,
-    GKE,
     GKEConfig,
     GKEOutputs,
     Secret,
@@ -23,6 +23,7 @@ from gcp_provider.resources import (
     UserConfig,
     UserOutputs,
 )
+
 
 gcp = Provider(name="gcp")
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import ClassVar, Literal, cast
 
-from pydantic import BaseModel
 from pragma_sdk import Config, Field, Outputs, Resource
+from pydantic import BaseModel
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 
@@ -73,7 +73,11 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
     resource: ClassVar[str] = "collection"
 
     def _get_client(self) -> AsyncQdrantClient:
-        """Get Qdrant async client with configured credentials."""
+        """Get Qdrant async client with configured credentials.
+
+        Returns:
+            Configured AsyncQdrantClient instance.
+        """
         api_key = cast(str, self.config.api_key) if self.config.api_key else None
 
         return AsyncQdrantClient(
@@ -82,7 +86,11 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
         )
 
     def _get_distance(self) -> models.Distance:
-        """Map distance string to Qdrant Distance enum."""
+        """Map distance string to Qdrant Distance enum.
+
+        Returns:
+            Qdrant Distance enum value.
+        """
         distance_map = {
             "Cosine": models.Distance.COSINE,
             "Euclid": models.Distance.EUCLID,
@@ -91,7 +99,14 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
         return distance_map[self.config.vectors.distance]
 
     async def _get_collection_info(self, client: AsyncQdrantClient) -> CollectionOutputs:
-        """Fetch collection info and build outputs."""
+        """Fetch collection info and build outputs.
+
+        Args:
+            client: Qdrant async client.
+
+        Returns:
+            CollectionOutputs with collection metadata.
+        """
         info = await client.get_collection(self.config.name)
         return CollectionOutputs(
             name=self.config.name,
@@ -112,7 +127,14 @@ class Collection(Resource[CollectionConfig, CollectionOutputs]):
         )
 
     def _vector_config_changed(self, previous_config: CollectionConfig) -> bool:
-        """Check if vector configuration changed (requires recreation)."""
+        """Check if vector configuration changed (requires recreation).
+
+        Args:
+            previous_config: The previous configuration before update.
+
+        Returns:
+            True if vector configuration changed.
+        """
         return (
             previous_config.vectors.size != self.config.vectors.size
             or previous_config.vectors.distance != self.config.vectors.distance

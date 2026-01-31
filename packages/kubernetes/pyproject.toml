@@ -43,6 +43,7 @@ update_changelog_on_bump = true
 changelog_file = "CHANGELOG.md"
 
 [tool.ruff]
+extend = "../../pyproject.toml"
 line-length = 120
 
 [tool.uv.build-backend]

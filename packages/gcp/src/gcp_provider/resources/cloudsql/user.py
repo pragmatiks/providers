@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic import Field as PydanticField
 from pragma_sdk import Config, Dependency, Field, Outputs, Resource
+from pydantic import Field as PydanticField
 
 from gcp_provider.resources.cloudsql.database_instance import DatabaseInstance
 from gcp_provider.resources.cloudsql.helpers import execute, get_credentials, get_sqladmin_service
@@ -53,6 +53,9 @@ class User(Resource[UserConfig, UserOutputs]):
         """Create user in the Cloud SQL instance.
 
         Idempotent: If user already exists, returns its current state.
+
+        Returns:
+            UserOutputs with user details.
         """
         instance_resource = await self.config.instance.resolve()
         inst = instance_resource.config
@@ -85,6 +88,13 @@ class User(Resource[UserConfig, UserOutputs]):
 
         If instance changed, delete from old instance and create in new one.
         Password changes are applied in place. Username cannot be changed.
+
+        Returns:
+            UserOutputs with updated user details.
+
+        Raises:
+            ValueError: If username changed (immutable field).
+            RuntimeError: If user not found after update.
         """
         if previous_config.username != self.config.username:
             msg = "Cannot change username; delete and recreate resource"
@@ -143,7 +153,11 @@ class User(Resource[UserConfig, UserOutputs]):
         )
 
     async def _find_user(self, inst: Any, service: Any) -> dict | None:
-        """Find user in instance by username."""
+        """Find user in instance by username.
+
+        Returns:
+            User dict if found, None otherwise.
+        """
         result = await execute(
             service.users().list(
                 project=inst.project_id,

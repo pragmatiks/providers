@@ -10,8 +10,8 @@ from datetime import datetime
 from typing import Any, ClassVar, Literal
 
 from google.cloud.logging_v2 import Client as LoggingClient
-from pydantic import Field, field_validator
 from pragma_sdk import Config, HealthStatus, LogEntry, Outputs, Resource
+from pydantic import Field, field_validator
 
 from gcp_provider.resources.cloudsql.helpers import (
     execute,
@@ -75,7 +75,14 @@ class DatabaseInstanceConfig(Config):
     @field_validator("instance_name")
     @classmethod
     def validate_instance_name(cls, v: str) -> str:
-        """Validate instance name follows Cloud SQL naming rules."""
+        """Validate instance name follows Cloud SQL naming rules.
+
+        Returns:
+            The validated instance name.
+
+        Raises:
+            ValueError: If instance name violates naming rules.
+        """
         if len(v) < 1 or len(v) > 98:
             msg = "Instance name must be 1-98 characters"
             raise ValueError(msg)
@@ -94,7 +101,14 @@ class DatabaseInstanceConfig(Config):
     @field_validator("database_version")
     @classmethod
     def validate_database_version(cls, v: str) -> str:
-        """Validate database version is supported."""
+        """Validate database version is supported.
+
+        Returns:
+            The validated database version.
+
+        Raises:
+            ValueError: If database version is not supported.
+        """
         supported_prefixes = ("POSTGRES_", "MYSQL_", "SQLSERVER_")
         if not any(v.startswith(prefix) for prefix in supported_prefixes):
             msg = f"Unsupported database version: {v}. Must start with POSTGRES_, MYSQL_, or SQLSERVER_"
@@ -171,9 +185,6 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
 
         Returns:
             DatabaseInstanceOutputs with updated instance state.
-
-        Raises:
-            ValueError: If immutable fields changed (requires delete + create).
         """
         self.config.validate_update(previous_config)
 
@@ -209,7 +220,11 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
             await self._wait_for_deletion(service)
 
     async def health(self) -> HealthStatus:
-        """Check instance health by querying instance status."""
+        """Check instance health by querying instance status.
+
+        Returns:
+            HealthStatus indicating instance health.
+        """
         service = get_sqladmin_service(get_credentials(self.config.credentials))
 
         instance = await execute(
@@ -239,7 +254,11 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
         since: datetime | None = None,
         tail: int = 100,
     ) -> AsyncIterator[LogEntry]:
-        """Fetch instance logs from Cloud Logging."""
+        """Fetch instance logs from Cloud Logging.
+
+        Yields:
+            LogEntry objects from Cloud Logging.
+        """
         credentials = get_credentials(self.config.credentials)
         project = self.config.project_id
 
@@ -275,7 +294,11 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
 
     @staticmethod
     def _severity_to_level(entry: Any) -> Literal["debug", "info", "warn", "error"]:
-        """Convert Cloud Logging severity to log level."""
+        """Convert Cloud Logging severity to log level.
+
+        Returns:
+            Log level string.
+        """
         if not hasattr(entry, "severity"):
             return "info"
 
@@ -292,12 +315,20 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
 
     @staticmethod
     def _generate_root_password() -> str:
-        """Generate a secure random password for the root user."""
+        """Generate a secure random password for the root user.
+
+        Returns:
+            Random 24-character password.
+        """
         alphabet = string.ascii_letters + string.digits
         return "".join(secrets.choice(alphabet) for _ in range(24))
 
     def _build_outputs(self, instance: dict) -> DatabaseInstanceOutputs:
-        """Build outputs from instance dict."""
+        """Build outputs from instance dict.
+
+        Returns:
+            DatabaseInstanceOutputs with instance details.
+        """
         public_ip, private_ip = extract_ips(instance)
 
         console_url = f"https://console.cloud.google.com/sql/instances/{self.config.instance_name}/overview?project={self.config.project_id}"
@@ -318,7 +349,15 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
         )
 
     async def _wait_for_runnable(self, service: Any) -> dict:
-        """Poll instance until it reaches RUNNABLE state."""
+        """Poll instance until it reaches RUNNABLE state.
+
+        Returns:
+            Instance dict in RUNNABLE state.
+
+        Raises:
+            RuntimeError: If instance not found or enters FAILED/SUSPENDED state.
+            TimeoutError: If instance doesn't reach RUNNABLE in time.
+        """
         for _ in range(_MAX_POLL_ATTEMPTS):
             instance = await execute(
                 service.instances().get(project=self.config.project_id, instance=self.config.instance_name),
@@ -343,7 +382,11 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
         )
 
     async def _wait_for_deletion(self, service: Any) -> None:
-        """Poll until instance is deleted."""
+        """Poll until instance is deleted.
+
+        Raises:
+            TimeoutError: If instance doesn't delete in time.
+        """
         for _ in range(_MAX_POLL_ATTEMPTS):
             instance = await execute(
                 service.instances().get(project=self.config.project_id, instance=self.config.instance_name),
@@ -359,7 +402,11 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
         raise TimeoutError(msg)
 
     def _build_instance_body(self) -> dict:
-        """Build instance body for create request."""
+        """Build instance body for create request.
+
+        Returns:
+            Instance body dict for Cloud SQL API.
+        """
         authorized_networks = [
             {"name": f"network-{i}", "value": network} for i, network in enumerate(self.config.authorized_networks)
         ]
@@ -390,7 +437,11 @@ class DatabaseInstance(Resource[DatabaseInstanceConfig, DatabaseInstanceOutputs]
         }
 
     def _build_patch_body(self) -> dict:
-        """Build patch body for update request (mutable settings only)."""
+        """Build patch body for update request (mutable settings only).
+
+        Returns:
+            Patch body dict for Cloud SQL API.
+        """
         authorized_networks = [
             {"name": f"network-{i}", "value": network} for i, network in enumerate(self.config.authorized_networks)
         ]

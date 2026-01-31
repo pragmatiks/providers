@@ -67,9 +67,6 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
 
         Returns:
             Configured Secret Manager async client using user's credentials.
-
-        Raises:
-            ValueError: If credentials format is invalid.
         """
         creds_data = self.config.credentials
 

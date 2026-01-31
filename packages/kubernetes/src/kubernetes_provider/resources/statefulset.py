@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import ClassVar, Literal
 
 from gcp_provider import GKE
@@ -28,8 +28,8 @@ from lightkube.models.core_v1 import (
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet as K8sStatefulSet
 from lightkube.resources.core_v1 import Pod
-from pydantic import BaseModel, Field
 from pragma_sdk import Config, Dependency, HealthStatus, LogEntry, Outputs, Resource
+from pydantic import BaseModel, Field
 
 from kubernetes_provider.client import create_client_from_gke
 
@@ -173,7 +173,14 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
     resource: ClassVar[str] = "statefulset"
 
     async def _get_client(self):
-        """Get lightkube client from GKE cluster credentials."""
+        """Get lightkube client from GKE cluster credentials.
+
+        Returns:
+            Lightkube async client configured for the GKE cluster.
+
+        Raises:
+            RuntimeError: If GKE cluster outputs are not available.
+        """
         cluster = await self.config.cluster.resolve()
         outputs = cluster.outputs
 
@@ -186,7 +193,11 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         return create_client_from_gke(outputs, creds)
 
     def _build_probe(self, config: ProbeConfig) -> Probe | None:
-        """Build probe from config."""
+        """Build probe from config.
+
+        Returns:
+            Kubernetes Probe object or None if tcp_socket_port not configured.
+        """
         if config.tcp_socket_port is None:
             return None
 
@@ -199,7 +210,11 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         )
 
     def _build_container(self, config: ContainerConfig) -> Container:
-        """Build container from config."""
+        """Build container from config.
+
+        Returns:
+            Kubernetes Container object.
+        """
         container = Container(
             name=config.name,
             image=config.image,
@@ -250,7 +265,11 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         return container
 
     def _build_pvc_template(self, config: VolumeClaimTemplateConfig) -> PersistentVolumeClaim:
-        """Build PVC template from config."""
+        """Build PVC template from config.
+
+        Returns:
+            Kubernetes PersistentVolumeClaim object.
+        """
         return PersistentVolumeClaim(
             metadata=ObjectMeta(name=config.name),
             spec=PersistentVolumeClaimSpec(
@@ -263,7 +282,11 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         )
 
     def _build_statefulset(self) -> K8sStatefulSet:
-        """Build Kubernetes StatefulSet object from config."""
+        """Build Kubernetes StatefulSet object from config.
+
+        Returns:
+            Kubernetes StatefulSet object ready to apply.
+        """
         labels = self.config.selector or {"app": self.name}
 
         containers = [self._build_container(c) for c in self.config.containers]
@@ -290,7 +313,11 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         )
 
     def _build_outputs(self, sts: K8sStatefulSet) -> StatefulSetOutputs:
-        """Build outputs from Kubernetes StatefulSet object."""
+        """Build outputs from Kubernetes StatefulSet object.
+
+        Returns:
+            StatefulSetOutputs with statefulset details.
+        """
         ready = 0
 
         if sts.status and sts.status.readyReplicas:
@@ -395,6 +422,9 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         """Delete Kubernetes StatefulSet with cascade.
 
         Idempotent: Succeeds if statefulset doesn't exist.
+
+        Raises:
+            ApiError: If deletion fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -414,6 +444,9 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
 
         Returns:
             HealthStatus indicating healthy/degraded/unhealthy.
+
+        Raises:
+            ApiError: If health check fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -487,7 +520,7 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
             try:
                 since_seconds = None
                 if since:
-                    delta = datetime.now(timezone.utc) - since
+                    delta = datetime.now(UTC) - since
                     since_seconds = max(1, int(delta.total_seconds()))
 
                 log_lines = await client.request(
@@ -503,7 +536,7 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
                 for line in log_lines.strip().split("\n"):
                     if line:
                         yield LogEntry(
-                            timestamp=datetime.now(timezone.utc),
+                            timestamp=datetime.now(UTC),
                             level="info",
                             message=line,
                             metadata={"pod": pod_name},
@@ -511,7 +544,7 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
 
             except ApiError:
                 yield LogEntry(
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(UTC),
                     level="warn",
                     message=f"Failed to fetch logs from pod {pod_name}",
                     metadata={"pod": pod_name},

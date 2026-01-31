@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import ClassVar
 
 from gcp_provider import GKE
@@ -58,7 +58,14 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
     resource: ClassVar[str] = "configmap"
 
     async def _get_client(self):
-        """Get lightkube client from GKE cluster credentials."""
+        """Get lightkube client from GKE cluster credentials.
+
+        Returns:
+            Lightkube async client configured for the GKE cluster.
+
+        Raises:
+            RuntimeError: If GKE cluster outputs are not available.
+        """
         cluster = await self.config.cluster.resolve()
         outputs = cluster.outputs
 
@@ -71,7 +78,11 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
         return create_client_from_gke(outputs, creds)
 
     def _build_configmap(self) -> K8sConfigMap:
-        """Build Kubernetes ConfigMap object from config."""
+        """Build Kubernetes ConfigMap object from config.
+
+        Returns:
+            Kubernetes ConfigMap object ready to apply.
+        """
         return K8sConfigMap(
             metadata=ObjectMeta(
                 name=self.name,
@@ -81,7 +92,11 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
         )
 
     def _build_outputs(self) -> ConfigMapOutputs:
-        """Build outputs."""
+        """Build outputs.
+
+        Returns:
+            ConfigMapOutputs with configmap details.
+        """
         return ConfigMapOutputs(
             name=self.name,
             namespace=self.config.namespace,
@@ -134,6 +149,9 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
         """Delete Kubernetes ConfigMap.
 
         Idempotent: Succeeds if configmap doesn't exist.
+
+        Raises:
+            ApiError: If deletion fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -152,6 +170,9 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
 
         Returns:
             HealthStatus indicating healthy/unhealthy.
+
+        Raises:
+            ApiError: If health check fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -195,7 +216,7 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
             Nothing - configmaps don't have logs.
         """
         yield LogEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             level="info",
             message="ConfigMaps do not produce logs",
         )

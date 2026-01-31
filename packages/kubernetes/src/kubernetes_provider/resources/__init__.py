@@ -24,6 +24,7 @@ from kubernetes_provider.resources.statefulset import (
     StatefulSetOutputs,
 )
 
+
 __all__ = [
     "ConfigMap",
     "ConfigMapConfig",

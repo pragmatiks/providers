@@ -22,8 +22,9 @@ from google.cloud.container_v1.types import (
 )
 from google.cloud.logging_v2 import Client as LoggingClient
 from google.oauth2 import service_account
-from pydantic import Field, field_validator, model_validator
 from pragma_sdk import Config, HealthStatus, LogEntry, Outputs, Resource
+from pydantic import Field, field_validator, model_validator
+
 
 _CLUSTER_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,38}[a-z0-9]$|^[a-z]$")
 
@@ -61,7 +62,14 @@ class GKEConfig(Config):
     @field_validator("name")
     @classmethod
     def validate_cluster_name(cls, v: str) -> str:
-        """Validate cluster name follows GCP naming rules."""
+        """Validate cluster name follows GCP naming rules.
+
+        Returns:
+            The validated cluster name.
+
+        Raises:
+            ValueError: If cluster name violates naming rules.
+        """
         if not _CLUSTER_NAME_PATTERN.match(v):
             msg = (
                 "Cluster name must start with a lowercase letter, contain only "
@@ -72,7 +80,14 @@ class GKEConfig(Config):
 
     @model_validator(mode="after")
     def validate_standard_cluster_config(self) -> Self:
-        """Validate node configuration for standard clusters."""
+        """Validate node configuration for standard clusters.
+
+        Returns:
+            Self after validation.
+
+        Raises:
+            ValueError: If standard cluster has invalid node count.
+        """
         if not self.autopilot and self.initial_node_count < 1:
             msg = "Standard clusters require initial_node_count >= 1"
             raise ValueError(msg)
@@ -129,9 +144,6 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
 
         Returns:
             Configured Cluster Manager async client.
-
-        Raises:
-            ValueError: If credentials format is invalid.
         """
         creds_data = self.config.credentials
 
@@ -158,7 +170,11 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         return f"projects/{self.config.project_id}/locations/{self.config.location}"
 
     def _build_outputs(self, cluster: Cluster) -> GKEOutputs:
-        """Build outputs from cluster object."""
+        """Build outputs from cluster object.
+
+        Returns:
+            GKEOutputs with cluster details.
+        """
         project = self.config.project_id
         location = self.config.location
         name = self.config.name
@@ -350,7 +366,11 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
             pass
 
     async def health(self) -> HealthStatus:
-        """Check cluster health by querying cluster status."""
+        """Check cluster health by querying cluster status.
+
+        Returns:
+            HealthStatus indicating cluster health.
+        """
         client = self._get_client()
 
         try:
@@ -387,7 +407,11 @@ class GKE(Resource[GKEConfig, GKEOutputs]):
         since: datetime | None = None,
         tail: int = 100,
     ) -> AsyncIterator[LogEntry]:
-        """Fetch cluster logs from Cloud Logging."""
+        """Fetch cluster logs from Cloud Logging.
+
+        Yields:
+            LogEntry objects from Cloud Logging.
+        """
         creds_data = self.config.credentials
         if isinstance(creds_data, str):
             creds_data = json.loads(creds_data)

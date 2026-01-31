@@ -81,7 +81,11 @@ class AnthropicModel(Resource[AnthropicModelConfig, AnthropicModelOutputs]):
         return Claude(**self.config.model_dump(exclude_none=True))
 
     async def on_create(self) -> AnthropicModelOutputs:
-        """Create resource and return serializable outputs."""
+        """Create resource and return serializable outputs.
+
+        Returns:
+            AnthropicModelOutputs with the configured model_id.
+        """
         return AnthropicModelOutputs(model_id=self.config.id)
 
     async def on_update(self, previous_config: AnthropicModelConfig) -> AnthropicModelOutputs:

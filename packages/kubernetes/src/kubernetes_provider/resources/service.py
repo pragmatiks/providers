@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import ClassVar, Literal
 
 from gcp_provider import GKE
 from lightkube import ApiError
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.resources.core_v1 import Endpoints, Service as K8sService
-from pydantic import BaseModel
+from lightkube.resources.core_v1 import Endpoints
+from lightkube.resources.core_v1 import Service as K8sService
 from pragma_sdk import Config, Dependency, HealthStatus, LogEntry, Outputs, Resource
+from pydantic import BaseModel
 
 from kubernetes_provider.client import create_client_from_gke
 
@@ -87,7 +88,14 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
     resource: ClassVar[str] = "service"
 
     async def _get_client(self):
-        """Get lightkube client from GKE cluster credentials."""
+        """Get lightkube client from GKE cluster credentials.
+
+        Returns:
+            Lightkube async client configured for the GKE cluster.
+
+        Raises:
+            RuntimeError: If GKE cluster outputs are not available.
+        """
         cluster = await self.config.cluster.resolve()
         outputs = cluster.outputs
 
@@ -100,7 +108,11 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
         return create_client_from_gke(outputs, creds)
 
     def _build_service(self) -> K8sService:
-        """Build Kubernetes Service object from config."""
+        """Build Kubernetes Service object from config.
+
+        Returns:
+            Kubernetes Service object ready to apply.
+        """
         ports = [
             ServicePort(
                 name=p.name,
@@ -136,7 +148,11 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
         )
 
     def _build_outputs(self, service: K8sService) -> ServiceOutputs:
-        """Build outputs from Kubernetes Service object."""
+        """Build outputs from Kubernetes Service object.
+
+        Returns:
+            ServiceOutputs with service details.
+        """
         assert service.metadata is not None
         assert service.metadata.name is not None
         assert service.metadata.namespace is not None
@@ -208,6 +224,9 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
         """Delete Kubernetes Service.
 
         Idempotent: Succeeds if service doesn't exist.
+
+        Raises:
+            ApiError: If deletion fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -226,6 +245,9 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
 
         Returns:
             HealthStatus indicating healthy/degraded/unhealthy.
+
+        Raises:
+            ApiError: If health check fails for reasons other than not found.
         """
         client = await self._get_client()
 
@@ -296,7 +318,7 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
             Nothing - services don't have logs.
         """
         yield LogEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             level="info",
             message="Services do not produce logs",
         )

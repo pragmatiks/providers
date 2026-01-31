@@ -8,10 +8,6 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import ClassVar
 
-from lightkube.resources.core_v1 import Service as K8sService
-from pydantic import BaseModel, Field as PydanticField, model_validator
-from pragma_sdk import Config, Dependency, HealthStatus, LogEntry, Outputs, Resource
-
 from gcp_provider import GKE
 from kubernetes_provider import (
     Service,
@@ -30,6 +26,10 @@ from kubernetes_provider.resources.statefulset import (
     VolumeClaimTemplateConfig,
     VolumeMountConfig,
 )
+from lightkube.resources.core_v1 import Service as K8sService
+from pragma_sdk import Config, Dependency, HealthStatus, LogEntry, Outputs, Resource
+from pydantic import BaseModel, model_validator
+from pydantic import Field as PydanticField
 
 
 _LB_POLL_INTERVAL_SECONDS = 5
@@ -84,8 +84,15 @@ class DatabaseConfig(Config):
     generate_api_key: bool = False
 
     @model_validator(mode="after")
-    def validate_api_key_options(self) -> "DatabaseConfig":
-        """Validate that api_key and generate_api_key are mutually exclusive."""
+    def validate_api_key_options(self) -> DatabaseConfig:
+        """Validate that api_key and generate_api_key are mutually exclusive.
+
+        Returns:
+            The validated config.
+
+        Raises:
+            ValueError: If both api_key and generate_api_key are set.
+        """
         if self.api_key is not None and self.generate_api_key:
             msg = "Cannot set both 'api_key' and 'generate_api_key'; use one or the other"
             raise ValueError(msg)
@@ -150,23 +157,43 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         return None
 
     def _headless_service_name(self) -> str:
-        """Get headless service name for pod DNS."""
+        """Get headless service name for pod DNS.
+
+        Returns:
+            The headless service name.
+        """
         return f"qdrant-{self.name}-headless"
 
     def _client_service_name(self) -> str:
-        """Get client service name for cluster access."""
+        """Get client service name for cluster access.
+
+        Returns:
+            The client service name.
+        """
         return f"qdrant-{self.name}"
 
     def _statefulset_name(self) -> str:
-        """Get StatefulSet name."""
+        """Get StatefulSet name.
+
+        Returns:
+            The StatefulSet name.
+        """
         return f"qdrant-{self.name}"
 
     def _namespace(self) -> str:
-        """Get Kubernetes namespace."""
+        """Get Kubernetes namespace.
+
+        Returns:
+            The Kubernetes namespace.
+        """
         return "default"
 
     def _labels(self) -> dict[str, str]:
-        """Get labels for Kubernetes resources."""
+        """Get labels for Kubernetes resources.
+
+        Returns:
+            Dictionary of Kubernetes labels.
+        """
         return {
             "app": "qdrant",
             "app.kubernetes.io/name": "qdrant",
@@ -174,7 +201,14 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         }
 
     async def _get_client(self):
-        """Get lightkube client from GKE cluster credentials."""
+        """Get lightkube client from GKE cluster credentials.
+
+        Returns:
+            Configured lightkube AsyncClient.
+
+        Raises:
+            RuntimeError: If GKE cluster outputs are not available.
+        """
         cluster = await self.config.cluster.resolve()
         outputs = cluster.outputs
 
@@ -221,7 +255,11 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         raise TimeoutError(msg)
 
     def _build_headless_service(self) -> Service:
-        """Build headless service for pod DNS."""
+        """Build headless service for pod DNS.
+
+        Returns:
+            Configured Service resource.
+        """
         config = ServiceConfig(
             cluster=self.config.cluster,
             namespace=self._namespace(),
@@ -239,7 +277,11 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         )
 
     def _build_client_service(self) -> Service:
-        """Build client service with LoadBalancer for external access."""
+        """Build client service with LoadBalancer for external access.
+
+        Returns:
+            Configured Service resource.
+        """
         config = ServiceConfig(
             cluster=self.config.cluster,
             namespace=self._namespace(),
@@ -257,7 +299,11 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         )
 
     def _build_statefulset(self) -> StatefulSet:
-        """Build StatefulSet for Qdrant pods."""
+        """Build StatefulSet for Qdrant pods.
+
+        Returns:
+            Configured StatefulSet resource.
+        """
         labels = self._labels()
 
         resources_config = None
@@ -327,7 +373,11 @@ class Database(Resource[DatabaseConfig, DatabaseOutputs]):
         )
 
     async def _build_outputs(self) -> DatabaseOutputs:
-        """Build outputs with external LoadBalancer URLs."""
+        """Build outputs with external LoadBalancer URLs.
+
+        Returns:
+            DatabaseOutputs with external URLs and API key.
+        """
         external_ip = await self._wait_for_load_balancer_ip()
 
         url = f"http://{external_ip}:6333"
