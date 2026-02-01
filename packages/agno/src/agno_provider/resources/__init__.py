@@ -24,6 +24,9 @@ from agno_provider.resources.prompt import (
     PromptOutputs,
 )
 from agno_provider.resources.tools import (
+    ToolsMCP,
+    ToolsMCPConfig,
+    ToolsMCPOutputs,
     ToolsWebSearch,
     ToolsWebSearchConfig,
     ToolsWebSearchOutputs,
@@ -46,6 +49,9 @@ __all__ = [
     "Prompt",
     "PromptConfig",
     "PromptOutputs",
+    "ToolsMCP",
+    "ToolsMCPConfig",
+    "ToolsMCPOutputs",
     "ToolsWebSearch",
     "ToolsWebSearchConfig",
     "ToolsWebSearchOutputs",
