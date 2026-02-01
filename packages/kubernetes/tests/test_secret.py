@@ -10,6 +10,7 @@ from pragma_sdk import Dependency, LifecycleState
 
 from kubernetes_provider import Secret, SecretConfig, SecretOutputs
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -45,8 +46,8 @@ def create_secret_with_mocked_dependency(
 
 
 async def test_create_secret_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_create applies secret and returns outputs."""
     secret = create_secret_with_mocked_dependency(
@@ -64,8 +65,8 @@ async def test_create_secret_success(
 
 
 async def test_create_secret_with_string_data(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_create handles string_data (plain text)."""
     secret = create_secret_with_mocked_dependency(
@@ -81,8 +82,8 @@ async def test_create_secret_with_string_data(
 
 
 async def test_update_secret_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_update applies updated secret."""
     secret = create_secret_with_mocked_dependency(
@@ -104,8 +105,8 @@ async def test_update_secret_success(
 
 
 async def test_update_rejects_namespace_change(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_update rejects namespace changes."""
     secret = create_secret_with_mocked_dependency(
@@ -125,8 +126,8 @@ async def test_update_rejects_namespace_change(
 
 
 async def test_delete_secret_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_delete removes secret."""
     secret = create_secret_with_mocked_dependency(
@@ -140,13 +141,13 @@ async def test_delete_secret_success(
 
 
 async def test_delete_secret_idempotent(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_delete succeeds when secret doesn't exist."""
-    error = ApiError(response=mocker.Any())
-    error.status = mocker.Any(code=404)
+    error = ApiError(response=mocker.MagicMock())
+    error.status = mocker.MagicMock(code=404)
     mock_lightkube_client.delete.side_effect = error
 
     secret = create_secret_with_mocked_dependency(
@@ -168,12 +169,12 @@ def test_resource_type() -> None:
 
 
 async def test_health_exists(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns healthy when secret exists."""
-    mock_secret = mocker.Any()
+    mock_secret = mocker.MagicMock()
     mock_secret.data = {"username": "dXNlcg==", "password": "cGFzcw=="}
     mock_secret.type = "Opaque"
     mock_lightkube_client.get.return_value = mock_secret
@@ -191,13 +192,13 @@ async def test_health_exists(
 
 
 async def test_health_not_found(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns unhealthy when secret not found."""
-    error = ApiError(response=mocker.Any())
-    error.status = mocker.Any(code=404)
+    error = ApiError(response=mocker.MagicMock())
+    error.status = mocker.MagicMock(code=404)
     mock_lightkube_client.get.side_effect = error
 
     secret = create_secret_with_mocked_dependency(
@@ -212,8 +213,8 @@ async def test_health_not_found(
 
 
 async def test_logs_returns_message(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """logs() yields info message about secrets not having logs."""
     secret = create_secret_with_mocked_dependency(

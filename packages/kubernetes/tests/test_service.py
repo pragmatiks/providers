@@ -11,6 +11,7 @@ from pragma_sdk import Dependency, LifecycleState
 from kubernetes_provider import Service, ServiceConfig, ServiceOutputs
 from kubernetes_provider.resources.service import PortConfig
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -46,12 +47,12 @@ def create_service_with_mocked_dependency(
 
 
 async def test_create_service_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_create applies service and returns outputs."""
-    mock_service = mocker.Any()
+    mock_service = mocker.MagicMock()
     mock_service.metadata.name = "test-service"
     mock_service.metadata.namespace = "default"
     mock_service.spec.clusterIP = "10.0.0.100"
@@ -71,12 +72,12 @@ async def test_create_service_success(
 
 
 async def test_create_headless_service(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_create handles headless service type."""
-    mock_service = mocker.Any()
+    mock_service = mocker.MagicMock()
     mock_service.metadata.name = "headless-svc"
     mock_service.metadata.namespace = "default"
     mock_service.spec.clusterIP = "None"
@@ -95,12 +96,12 @@ async def test_create_headless_service(
 
 
 async def test_update_service_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_update applies updated service."""
-    mock_service = mocker.Any()
+    mock_service = mocker.MagicMock()
     mock_service.metadata.name = "test-service"
     mock_service.metadata.namespace = "default"
     mock_service.spec.clusterIP = "10.0.0.100"
@@ -128,8 +129,8 @@ async def test_update_service_success(
 
 
 async def test_update_rejects_namespace_change(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_update rejects namespace changes."""
     svc = create_service_with_mocked_dependency(
@@ -151,8 +152,8 @@ async def test_update_rejects_namespace_change(
 
 
 async def test_delete_service_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_delete removes service."""
     svc = create_service_with_mocked_dependency(
@@ -166,13 +167,13 @@ async def test_delete_service_success(
 
 
 async def test_delete_service_idempotent(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_delete succeeds when service doesn't exist."""
-    error = ApiError(response=mocker.Any())
-    error.status = mocker.Any(code=404)
+    error = ApiError(response=mocker.MagicMock())
+    error.status = mocker.MagicMock(code=404)
     mock_lightkube_client.delete.side_effect = error
 
     svc = create_service_with_mocked_dependency(
@@ -194,18 +195,18 @@ def test_resource_type() -> None:
 
 
 async def test_health_with_endpoints(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns healthy when service has endpoints."""
-    mock_svc = mocker.Any()
+    mock_svc = mocker.MagicMock()
     mock_svc.metadata.name = "test-svc"
     mock_svc.metadata.namespace = "default"
 
-    mock_endpoints = mocker.Any()
-    mock_subset = mocker.Any()
-    mock_subset.addresses = [mocker.Any(), mocker.Any()]
+    mock_endpoints = mocker.MagicMock()
+    mock_subset = mocker.MagicMock()
+    mock_subset.addresses = [mocker.MagicMock(), mocker.MagicMock()]
     mock_endpoints.subsets = [mock_subset]
 
     mock_lightkube_client.get.side_effect = [mock_svc, mock_endpoints]
@@ -222,16 +223,16 @@ async def test_health_with_endpoints(
 
 
 async def test_health_no_endpoints(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns degraded when service has no endpoints."""
-    mock_svc = mocker.Any()
+    mock_svc = mocker.MagicMock()
     mock_svc.metadata.name = "test-svc"
     mock_svc.metadata.namespace = "default"
 
-    mock_endpoints = mocker.Any()
+    mock_endpoints = mocker.MagicMock()
     mock_endpoints.subsets = None
 
     mock_lightkube_client.get.side_effect = [mock_svc, mock_endpoints]
@@ -247,13 +248,13 @@ async def test_health_no_endpoints(
 
 
 async def test_health_service_not_found(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns unhealthy when service not found."""
-    error = ApiError(response=mocker.Any())
-    error.status = mocker.Any(code=404)
+    error = ApiError(response=mocker.MagicMock())
+    error.status = mocker.MagicMock(code=404)
     mock_lightkube_client.get.side_effect = error
 
     svc = create_service_with_mocked_dependency(
@@ -268,8 +269,8 @@ async def test_health_service_not_found(
 
 
 async def test_logs_returns_message(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """logs() yields info message about services not having logs."""
     svc = create_service_with_mocked_dependency(

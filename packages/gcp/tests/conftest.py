@@ -10,13 +10,18 @@ from pragma_sdk.provider import ProviderHarness
 
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture, MagicMock
+    from pytest_mock import MagicMock, MockerFixture
 
 SAMPLE_CREDENTIALS = {
     "type": "service_account",
     "project_id": "test-project",
     "private_key_id": "key123",
-    "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MJ7EH7M7FV8PLVP5\nfake-key-for-testing-only\n-----END RSA PRIVATE KEY-----\n",
+    "private_key": (
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MJ7EH7M7FV8PLVP5\n"
+        "fake-key-for-testing-only\n"
+        "-----END RSA PRIVATE KEY-----\n"
+    ),
     "client_email": "test@test-project.iam.gserviceaccount.com",
     "client_id": "123456789",
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -39,7 +44,7 @@ def sample_credentials() -> dict:
 
 
 @pytest.fixture
-def mock_secretmanager_client(mocker: "MockerFixture") -> MagicMock:
+def mock_secretmanager_client(mocker: MockerFixture) -> MagicMock:
     """Mock GCP Secret Manager async client with credentials support."""
     mock_client = mocker.MagicMock()
 
@@ -68,7 +73,7 @@ def mock_secretmanager_client(mocker: "MockerFixture") -> MagicMock:
 
 
 @pytest.fixture
-def mock_container_client(mocker: "MockerFixture") -> MagicMock:
+def mock_container_client(mocker: MockerFixture) -> MagicMock:
     """Mock GCP Container (GKE) async client with credentials support."""
     mock_client = mocker.MagicMock()
 
@@ -100,7 +105,7 @@ def mock_container_client(mocker: "MockerFixture") -> MagicMock:
 
 
 @pytest.fixture
-def mock_sqladmin_service(mocker: "MockerFixture") -> MagicMock:
+def mock_sqladmin_service(mocker: MockerFixture) -> MagicMock:
     """Mock GCP Cloud SQL Admin API service (discovery-based)."""
     mock_service = mocker.MagicMock()
 

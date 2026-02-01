@@ -10,16 +10,21 @@ from pragma_sdk.provider import ProviderHarness
 
 from gcp_provider import Secret, SecretConfig, SecretOutputs
 
+
 if TYPE_CHECKING:
     from pytest_mock import MagicMock, MockerFixture
 
 
-# Sample GCP service account credentials for testing
 SAMPLE_CREDENTIALS = {
     "type": "service_account",
     "project_id": "test-project",
     "private_key_id": "key123",
-    "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MJ7EH7M7FV8PLVP5\nfake-key-for-testing-only\n-----END RSA PRIVATE KEY-----\n",
+    "private_key": (
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MJ7EH7M7FV8PLVP5\n"
+        "fake-key-for-testing-only\n"
+        "-----END RSA PRIVATE KEY-----\n"
+    ),
     "client_email": "test@test-project.iam.gserviceaccount.com",
     "client_id": "123456789",
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -83,7 +88,6 @@ async def test_update_adds_new_version(
     mocker: MockerFixture,
 ) -> None:
     """on_update creates new version when data changes."""
-    # Update mock for version 2
     mock_version = mocker.MagicMock()
     mock_version.name = "projects/proj/secrets/sec/versions/2"
     mock_secretmanager_client.add_secret_version.return_value = mock_version
@@ -212,7 +216,6 @@ async def test_create_with_string_credentials(
     mock_secretmanager_client: MagicMock,
 ) -> None:
     """on_create accepts JSON-encoded string credentials."""
-    # Credentials as a JSON string (common when passing through env vars or refs)
     string_credentials = json.dumps(SAMPLE_CREDENTIALS)
 
     config = SecretConfig(

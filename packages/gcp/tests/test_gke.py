@@ -10,6 +10,7 @@ from pragma_sdk.provider import ProviderHarness
 
 from gcp_provider import GKE, GKEConfig, GKEOutputs
 
+
 if TYPE_CHECKING:
     from pytest_mock import MagicMock, MockerFixture
 
@@ -109,7 +110,6 @@ async def test_create_cluster_standard_mode(
     assert result.success
     call_args = mock_container_client.create_cluster.call_args
     cluster_config = call_args.kwargs["request"].cluster
-    # When autopilot is False, the autopilot field should not be set to enabled
     assert not cluster_config.autopilot.enabled
 
 
@@ -343,7 +343,6 @@ async def test_delete_success(
     sample_credentials: dict,
 ) -> None:
     """on_delete removes cluster."""
-    # After delete, get_cluster should raise NotFound
     mock_container_client.get_cluster.side_effect = NotFound("deleted")
 
     config = GKEConfig(

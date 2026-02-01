@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from pragma_sdk.provider import ProviderHarness
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -15,7 +16,12 @@ SAMPLE_CREDENTIALS = {
     "type": "service_account",
     "project_id": "test-project",
     "private_key_id": "key123",
-    "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MJ7EH7M7FV8PLVP5\nfake-key-for-testing-only\n-----END RSA PRIVATE KEY-----\n",
+    "private_key": (
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MJ7EH7M7FV8PLVP5\n"
+        "fake-key-for-testing-only\n"
+        "-----END RSA PRIVATE KEY-----\n"
+    ),
     "client_email": "test@test-project.iam.gserviceaccount.com",
     "client_id": "123456789",
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -38,7 +44,7 @@ def sample_credentials() -> dict:
 
 
 @pytest.fixture
-def mock_gke_cluster(mocker: "MockerFixture") -> Any:
+def mock_gke_cluster(mocker: MockerFixture) -> Any:
     mock_outputs = mocker.MagicMock()
     mock_outputs.endpoint = "10.0.0.1"
     mock_outputs.cluster_ca_certificate = "Y2VydGlmaWNhdGU="
@@ -57,7 +63,7 @@ def mock_gke_cluster(mocker: "MockerFixture") -> Any:
 
 
 @pytest.fixture
-def mock_lightkube_client(mocker: "MockerFixture") -> Any:
+def mock_lightkube_client(mocker: MockerFixture) -> Any:
     mock_client = mocker.MagicMock()
 
     mock_client.apply = mocker.AsyncMock()

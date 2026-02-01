@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from pragma_sdk import Dependency, LifecycleState
+from pragma_sdk import Dependency, HealthStatus, LifecycleState, LogEntry
 
 from qdrant_provider import (
     Database,
@@ -14,6 +15,7 @@ from qdrant_provider import (
     ResourceConfig,
     StorageConfig,
 )
+
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -46,7 +48,7 @@ def create_database_with_mocked_dependency(
 
 
 @pytest.fixture
-def mock_apply_and_wait(mocker: "MockerFixture"):
+def mock_apply_and_wait(mocker: MockerFixture):
     """Mock the apply(), wait_ready(), and _wait_for_load_balancer_ip methods."""
     mock_apply = mocker.patch(
         "pragma_sdk.models.base.Resource.apply",
@@ -65,7 +67,7 @@ def mock_apply_and_wait(mocker: "MockerFixture"):
 
 
 async def test_create_database_success(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
+    mock_apply_and_wait: tuple[Any, Any, Any],
 ) -> None:
     """on_create creates child resources and returns outputs."""
     mock_apply, mock_wait, mock_lb_ip = mock_apply_and_wait
@@ -85,7 +87,7 @@ async def test_create_database_success(
 
 
 async def test_create_database_with_storage(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
+    mock_apply_and_wait: tuple[Any, Any, Any],
 ) -> None:
     """on_create handles storage configuration."""
     db = create_database_with_mocked_dependency(
@@ -99,7 +101,7 @@ async def test_create_database_with_storage(
 
 
 async def test_create_database_with_resources(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
+    mock_apply_and_wait: tuple[Any, Any, Any],
 ) -> None:
     """on_create handles resource limits."""
     db = create_database_with_mocked_dependency(
@@ -114,7 +116,7 @@ async def test_create_database_with_resources(
 
 
 async def test_create_database_with_api_key(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
+    mock_apply_and_wait: tuple[Any, Any, Any],
 ) -> None:
     """on_create configures API key authentication."""
     db = create_database_with_mocked_dependency(
@@ -135,7 +137,7 @@ async def test_create_database_with_api_key(
 
 
 async def test_update_unchanged_returns_existing(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
+    mock_apply_and_wait: tuple[Any, Any, Any],
 ) -> None:
     """on_update returns existing outputs when config unchanged."""
     mock_apply, mock_wait, mock_lb_ip = mock_apply_and_wait
@@ -168,7 +170,7 @@ async def test_update_unchanged_returns_existing(
 
 
 async def test_update_replicas_applies_changes(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
+    mock_apply_and_wait: tuple[Any, Any, Any],
 ) -> None:
     """on_update applies changes when replicas change."""
     mock_apply, mock_wait, mock_lb_ip = mock_apply_and_wait
@@ -209,7 +211,7 @@ async def test_update_rejects_cluster_change() -> None:
         await db.on_update(previous_config)
 
 
-async def test_delete_removes_child_resources(mocker: "MockerFixture") -> None:
+async def test_delete_removes_child_resources(mocker: MockerFixture) -> None:
     """on_delete removes child Kubernetes resources."""
     mock_service_delete = mocker.patch(
         "kubernetes_provider.Service.on_delete",
@@ -264,7 +266,7 @@ def test_api_key_and_generate_api_key_mutually_exclusive() -> None:
         )
 
 
-async def test_build_outputs(mocker: "MockerFixture") -> None:
+async def test_build_outputs(mocker: MockerFixture) -> None:
     """_build_outputs creates correct external URLs."""
     mocker.patch(
         "qdrant_provider.resources.database.Database._wait_for_load_balancer_ip",
@@ -282,7 +284,7 @@ async def test_build_outputs(mocker: "MockerFixture") -> None:
     assert outputs.ready is True
 
 
-async def test_build_outputs_with_api_key(mocker: "MockerFixture") -> None:
+async def test_build_outputs_with_api_key(mocker: MockerFixture) -> None:
     """_build_outputs includes api_key when configured."""
     mocker.patch(
         "qdrant_provider.resources.database.Database._wait_for_load_balancer_ip",
@@ -365,12 +367,10 @@ def test_build_statefulset_with_api_key() -> None:
 
 
 async def test_health_delegates_to_statefulset(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
-    mocker: "MockerFixture",
+    mock_apply_and_wait: tuple[Any, Any, Any],
+    mocker: MockerFixture,
 ) -> None:
     """health() delegates to underlying StatefulSet."""
-    from pragma_sdk import HealthStatus
-
     mock_sts_health = mocker.patch(
         "kubernetes_provider.StatefulSet.health",
         new_callable=mocker.AsyncMock,
@@ -386,17 +386,14 @@ async def test_health_delegates_to_statefulset(
 
 
 async def test_logs_delegates_to_statefulset(
-    mock_apply_and_wait: "tuple[Any, Any, Any]",
-    mocker: "MockerFixture",
+    mock_apply_and_wait: tuple[Any, Any, Any],
+    mocker: MockerFixture,
 ) -> None:
     """logs() delegates to underlying StatefulSet."""
-    from datetime import datetime, timezone
-
-    from pragma_sdk import LogEntry
 
     async def mock_logs(*args, **kwargs):
         yield LogEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             level="info",
             message="test log",
             metadata={"pod": "qdrant-test-db-0"},
