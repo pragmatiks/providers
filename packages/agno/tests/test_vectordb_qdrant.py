@@ -131,8 +131,9 @@ def test_vectordb_method_with_hybrid_search() -> None:
         db = resource.vectordb()
         assert isinstance(db, Qdrant)
     except ImportError as e:
-        if "fastembed" in str(e):
-            pytest.skip("fastembed not installed - required for hybrid search")
+        error_msg = str(e).lower()
+        if "fastembed" in error_msg or "onnxruntime" in error_msg:
+            pytest.skip("fastembed/onnxruntime not available - required for hybrid search")
         raise
 
 

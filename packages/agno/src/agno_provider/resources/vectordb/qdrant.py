@@ -114,7 +114,7 @@ class VectordbQdrant(Resource[VectordbQdrantConfig, VectordbQdrantOutputs]):
         Returns:
             Configured Agno Qdrant instance ready for use.
         """
-        kwargs: dict = {
+        kwargs: dict[str, str | SearchType] = {
             "collection": str(self.config.collection),
             "url": str(self.config.url),
             "search_type": self._get_search_type(),
