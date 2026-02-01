@@ -113,8 +113,8 @@ def test_vectordb_method_with_api_key() -> None:
 def test_vectordb_method_with_hybrid_search() -> None:
     """vectordb() configures hybrid search when specified.
 
-    Note: Hybrid search requires fastembed package. This test verifies
-    the configuration is passed correctly to Agno's Qdrant class.
+    Note: Hybrid search requires fastembed package which needs
+    onnxruntime. Skips on Python 3.14+ where onnxruntime isn't available.
     """
     config = VectordbQdrantConfig(
         url="http://localhost:6333",
