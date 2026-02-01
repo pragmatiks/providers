@@ -13,12 +13,6 @@ from agno_provider import (
 )
 
 
-@pytest.fixture
-def harness() -> ProviderHarness:
-    """Test harness for invoking lifecycle methods."""
-    return ProviderHarness()
-
-
 async def test_create_with_instructions_only(harness: ProviderHarness) -> None:
     """on_create with instructions returns rendered text."""
     config = PromptConfig(

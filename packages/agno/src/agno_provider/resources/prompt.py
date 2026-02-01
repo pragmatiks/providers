@@ -106,8 +106,8 @@ class Prompt(Resource[PromptConfig, PromptOutputs]):
 
         return "\n".join(parts)
 
-    async def on_create(self) -> PromptOutputs:
-        """Create resource and return rendered outputs.
+    def _build_outputs(self) -> PromptOutputs:
+        """Build outputs from current config.
 
         Returns:
             PromptOutputs with rendered text and instruction count.
@@ -117,19 +117,24 @@ class Prompt(Resource[PromptConfig, PromptOutputs]):
 
         return PromptOutputs(text=text, instruction_count=instruction_count)
 
-    async def on_update(self, previous_config: PromptConfig) -> PromptOutputs:
+    async def on_create(self) -> PromptOutputs:
+        """Create resource and return rendered outputs.
+
+        Returns:
+            PromptOutputs with rendered text and instruction count.
+        """
+        return self._build_outputs()
+
+    async def on_update(self, previous_config: PromptConfig) -> PromptOutputs:  # noqa: ARG002
         """Update resource and return re-rendered outputs.
 
         Args:
-            previous_config: The previous configuration before update.
+            previous_config: The previous configuration (unused for stateless resource).
 
         Returns:
             PromptOutputs with updated rendered text.
         """
-        text = self.render()
-        instruction_count = len(text.strip().split("\n")) if text.strip() else 0
-
-        return PromptOutputs(text=text, instruction_count=instruction_count)
+        return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete is a no-op since this resource is stateless."""
