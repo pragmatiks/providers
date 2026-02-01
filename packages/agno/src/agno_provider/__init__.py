@@ -28,6 +28,9 @@ from agno_provider.resources import (
     ToolsWebSearch,
     ToolsWebSearchConfig,
     ToolsWebSearchOutputs,
+    VectordbQdrant,
+    VectordbQdrantConfig,
+    VectordbQdrantOutputs,
 )
 
 
@@ -40,6 +43,7 @@ agno.resource("models/openai")(OpenAIModel)
 agno.resource("prompt")(Prompt)
 agno.resource("tools/mcp")(ToolsMCP)
 agno.resource("tools/websearch")(ToolsWebSearch)
+agno.resource("vectordb/qdrant")(VectordbQdrant)
 
 __all__ = [
     "agno",
@@ -64,4 +68,7 @@ __all__ = [
     "ToolsWebSearch",
     "ToolsWebSearchConfig",
     "ToolsWebSearchOutputs",
+    "VectordbQdrant",
+    "VectordbQdrantConfig",
+    "VectordbQdrantOutputs",
 ]

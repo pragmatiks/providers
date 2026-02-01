@@ -31,6 +31,11 @@ from agno_provider.resources.tools import (
     ToolsWebSearchConfig,
     ToolsWebSearchOutputs,
 )
+from agno_provider.resources.vectordb import (
+    VectordbQdrant,
+    VectordbQdrantConfig,
+    VectordbQdrantOutputs,
+)
 
 
 __all__ = [
@@ -55,4 +60,7 @@ __all__ = [
     "ToolsWebSearch",
     "ToolsWebSearchConfig",
     "ToolsWebSearchOutputs",
+    "VectordbQdrant",
+    "VectordbQdrantConfig",
+    "VectordbQdrantOutputs",
 ]
