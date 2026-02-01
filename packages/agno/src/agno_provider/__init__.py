@@ -22,9 +22,9 @@ from agno_provider.resources import (
     Prompt,
     PromptConfig,
     PromptOutputs,
-    ToolsFunction,
-    ToolsFunctionConfig,
-    ToolsFunctionOutputs,
+    ToolsWebSearch,
+    ToolsWebSearchConfig,
+    ToolsWebSearchOutputs,
 )
 
 
@@ -35,7 +35,7 @@ agno.resource("db/postgres")(DbPostgres)
 agno.resource("models/anthropic")(AnthropicModel)
 agno.resource("models/openai")(OpenAIModel)
 agno.resource("prompt")(Prompt)
-agno.resource("tools/function")(ToolsFunction)
+agno.resource("tools/websearch")(ToolsWebSearch)
 
 __all__ = [
     "agno",
@@ -54,7 +54,7 @@ __all__ = [
     "Prompt",
     "PromptConfig",
     "PromptOutputs",
-    "ToolsFunction",
-    "ToolsFunctionConfig",
-    "ToolsFunctionOutputs",
+    "ToolsWebSearch",
+    "ToolsWebSearchConfig",
+    "ToolsWebSearchOutputs",
 ]

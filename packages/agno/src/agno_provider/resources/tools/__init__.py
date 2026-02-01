@@ -1,14 +1,14 @@
 """Tool resources for Agno provider."""
 
-from agno_provider.resources.tools.function import (
-    ToolsFunction,
-    ToolsFunctionConfig,
-    ToolsFunctionOutputs,
+from agno_provider.resources.tools.websearch import (
+    ToolsWebSearch,
+    ToolsWebSearchConfig,
+    ToolsWebSearchOutputs,
 )
 
 
 __all__ = [
-    "ToolsFunction",
-    "ToolsFunctionConfig",
-    "ToolsFunctionOutputs",
+    "ToolsWebSearch",
+    "ToolsWebSearchConfig",
+    "ToolsWebSearchOutputs",
 ]
