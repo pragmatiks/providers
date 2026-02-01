@@ -5,13 +5,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from agno.models.openai import OpenAIChat
+
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 
 @pytest.fixture
-def mock_gke_outputs(mocker: "MockerFixture") -> Any:
+def mock_gke_outputs(mocker: MockerFixture) -> Any:
     outputs = mocker.MagicMock()
     outputs.endpoint = "10.0.0.1"
     outputs.cluster_ca_certificate = "Y2VydGlmaWNhdGU="
@@ -22,16 +24,14 @@ def mock_gke_outputs(mocker: "MockerFixture") -> Any:
 
 
 @pytest.fixture
-def mock_gke_resource(mocker: "MockerFixture", mock_gke_outputs: Any) -> Any:
+def mock_gke_resource(mocker: MockerFixture, mock_gke_outputs: Any) -> Any:
     resource = mocker.MagicMock()
     resource.outputs = mock_gke_outputs
     return resource
 
 
 @pytest.fixture
-def mock_model_outputs(mocker: "MockerFixture") -> Any:
-    from agno.models.openai import OpenAIChat
-
+def mock_model_outputs(mocker: MockerFixture) -> Any:
     outputs = mocker.MagicMock()
     outputs.model = OpenAIChat(id="gpt-4o", api_key="sk-test")
     outputs.model_id = "gpt-4o"
@@ -40,42 +40,42 @@ def mock_model_outputs(mocker: "MockerFixture") -> Any:
 
 
 @pytest.fixture
-def mock_model_resource(mocker: "MockerFixture", mock_model_outputs: Any) -> Any:
+def mock_model_resource(mocker: MockerFixture, mock_model_outputs: Any) -> Any:
     resource = mocker.MagicMock()
     resource.outputs = mock_model_outputs
     return resource
 
 
 @pytest.fixture
-def mock_embeddings_outputs(mocker: "MockerFixture") -> Any:
+def mock_embeddings_outputs(mocker: MockerFixture) -> Any:
     outputs = mocker.MagicMock()
     outputs.url = "http://openai-embeddings.default.svc.cluster.local"
     return outputs
 
 
 @pytest.fixture
-def mock_embeddings_resource(mocker: "MockerFixture", mock_embeddings_outputs: Any) -> Any:
+def mock_embeddings_resource(mocker: MockerFixture, mock_embeddings_outputs: Any) -> Any:
     resource = mocker.MagicMock()
     resource.outputs = mock_embeddings_outputs
     return resource
 
 
 @pytest.fixture
-def mock_vector_store_outputs(mocker: "MockerFixture") -> Any:
+def mock_vector_store_outputs(mocker: MockerFixture) -> Any:
     outputs = mocker.MagicMock()
     outputs.url = "http://qdrant-collection.default.svc.cluster.local:6333"
     return outputs
 
 
 @pytest.fixture
-def mock_vector_store_resource(mocker: "MockerFixture", mock_vector_store_outputs: Any) -> Any:
+def mock_vector_store_resource(mocker: MockerFixture, mock_vector_store_outputs: Any) -> Any:
     resource = mocker.MagicMock()
     resource.outputs = mock_vector_store_outputs
     return resource
 
 
 @pytest.fixture
-def mock_subprocess(mocker: "MockerFixture") -> Any:
+def mock_subprocess(mocker: MockerFixture) -> Any:
     mock_run = mocker.patch("subprocess.run")
 
     def run_side_effect(cmd, **kwargs):
@@ -94,5 +94,5 @@ def mock_subprocess(mocker: "MockerFixture") -> Any:
 
 
 @pytest.fixture
-def mock_asyncio_sleep(mocker: "MockerFixture") -> Any:
+def mock_asyncio_sleep(mocker: MockerFixture) -> Any:
     return mocker.patch("agno_provider.resources.agent.asyncio.sleep", return_value=None)

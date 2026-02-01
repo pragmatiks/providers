@@ -109,10 +109,10 @@ class DbPostgres(Resource[DbPostgresConfig, DbPostgresOutputs]):
             Connection URL with postgresql+psycopg_async:// scheme.
         """
         if self.config.connection_url is not None:
-            url = self.config.connection_url
+            url = str(self.config.connection_url)
 
             if self.config.username is not None and self.config.password is not None:
-                url = self._inject_credentials(url, self.config.username, self.config.password)
+                url = self._inject_credentials(url, str(self.config.username), str(self.config.password))
 
             return url.replace("postgresql://", "postgresql+psycopg_async://")
 
@@ -176,7 +176,7 @@ class DbPostgres(Resource[DbPostgresConfig, DbPostgresOutputs]):
         """
         return DbPostgresOutputs(ready=True, db_schema=self.config.db_schema)
 
-    async def on_update(self, _previous_config: DbPostgresConfig) -> DbPostgresOutputs:
+    async def on_update(self, previous_config: DbPostgresConfig) -> DbPostgresOutputs:  # noqa: ARG002
         """Update resource and return serializable outputs.
 
         Returns:
