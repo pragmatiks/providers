@@ -23,6 +23,11 @@ from agno_provider.resources.prompt import (
     PromptConfig,
     PromptOutputs,
 )
+from agno_provider.resources.tools import (
+    ToolsFunction,
+    ToolsFunctionConfig,
+    ToolsFunctionOutputs,
+)
 
 
 __all__ = [
@@ -41,4 +46,7 @@ __all__ = [
     "Prompt",
     "PromptConfig",
     "PromptOutputs",
+    "ToolsFunction",
+    "ToolsFunctionConfig",
+    "ToolsFunctionOutputs",
 ]
