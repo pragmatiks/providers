@@ -11,6 +11,7 @@ from agno_provider import (
     DbPostgresConfig,
     DbPostgresOutputs,
 )
+from agno_provider.resources.db.postgres import DbPostgresSpec
 
 
 @pytest.fixture
@@ -173,44 +174,38 @@ def test_url_building_separate_fields_uses_default_port(harness: ProviderHarness
     assert url == "postgresql+psycopg_async://user:pass@localhost:5432/test"
 
 
-def test_db_method_returns_async_postgres_instance(harness: ProviderHarness) -> None:
-    """db() returns configured AsyncPostgresDb instance."""
-    config = DbPostgresConfig(
+def test_from_spec_returns_async_postgres_instance(harness: ProviderHarness) -> None:
+    """from_spec() returns configured AsyncPostgresDb instance."""
+    spec = DbPostgresSpec(
         connection_url="postgresql://user:pass@localhost:5432/db",
     )
 
-    resource = DbPostgres(name="test-db", config=config)
-
-    db = resource.db()
+    db = DbPostgres.from_spec(spec)
 
     assert isinstance(db, AsyncPostgresDb)
 
 
-def test_db_method_passes_schema(harness: ProviderHarness) -> None:
-    """db() passes schema to AsyncPostgresDb."""
-    config = DbPostgresConfig(
+def test_from_spec_passes_schema(harness: ProviderHarness) -> None:
+    """from_spec() passes schema to AsyncPostgresDb."""
+    spec = DbPostgresSpec(
         connection_url="postgresql://user:pass@localhost:5432/db",
         db_schema="custom_schema",
     )
 
-    resource = DbPostgres(name="test-db", config=config)
-
-    db = resource.db()
+    db = DbPostgres.from_spec(spec)
 
     assert db.db_schema == "custom_schema"
 
 
-def test_db_method_passes_table_names(harness: ProviderHarness) -> None:
-    """db() passes custom table names to AsyncPostgresDb."""
-    config = DbPostgresConfig(
+def test_from_spec_passes_table_names(harness: ProviderHarness) -> None:
+    """from_spec() passes custom table names to AsyncPostgresDb."""
+    spec = DbPostgresSpec(
         connection_url="postgresql://user:pass@localhost:5432/db",
         session_table="my_sessions",
         memory_table="my_memories",
     )
 
-    resource = DbPostgres(name="test-db", config=config)
-
-    db = resource.db()
+    db = DbPostgres.from_spec(spec)
 
     assert db.session_table_name == "my_sessions"
     assert db.memory_table_name == "my_memories"
@@ -227,8 +222,7 @@ async def test_lifecycle_create_returns_outputs(harness: ProviderHarness) -> Non
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is True
-    assert result.outputs.db_schema == "test_schema"
+    assert result.outputs.spec.db_schema == "test_schema"
 
 
 async def test_lifecycle_update_returns_outputs(harness: ProviderHarness) -> None:
@@ -242,17 +236,21 @@ async def test_lifecycle_update_returns_outputs(harness: ProviderHarness) -> Non
         db_schema="new_schema",
     )
 
+    old_spec = DbPostgresSpec(
+        connection_url="postgresql://user:pass@localhost:5432/db",
+        db_schema="old_schema",
+    )
     result = await harness.invoke_update(
         DbPostgres,
         name="test-db",
         config=current,
         previous_config=previous,
-        current_outputs=DbPostgresOutputs(ready=True, db_schema="old_schema"),
+        current_outputs=DbPostgresOutputs(spec=old_spec),
     )
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.db_schema == "new_schema"
+    assert result.outputs.spec.db_schema == "new_schema"
 
 
 async def test_lifecycle_delete_success(harness: ProviderHarness) -> None:
@@ -309,11 +307,103 @@ def test_resource_metadata_resource_type() -> None:
 
 def test_outputs_are_serializable() -> None:
     """Outputs contain only serializable data."""
-    outputs = DbPostgresOutputs(ready=True, db_schema="ai")
+    spec = DbPostgresSpec(
+        connection_url="postgresql://user:pass@localhost:5432/db",
+        db_schema="ai",
+    )
+    outputs = DbPostgresOutputs(spec=spec)
 
-    assert outputs.ready is True
-    assert outputs.db_schema == "ai"
+    assert outputs.spec == spec
+    assert outputs.spec.db_schema == "ai"
 
     serialized = outputs.model_dump_json()
-    assert "ready" in serialized
+    assert "spec" in serialized
     assert "db_schema" in serialized
+
+
+def test_spec_from_spec_with_connection_url() -> None:
+    """from_spec creates AsyncPostgresDb from spec with connection_url."""
+    spec = DbPostgresSpec(
+        connection_url="postgresql://user:pass@localhost:5432/db",
+        db_schema="test_schema",
+        session_table="my_sessions",
+    )
+
+    db = DbPostgres.from_spec(spec)
+
+    assert isinstance(db, AsyncPostgresDb)
+    assert db.db_schema == "test_schema"
+    assert db.session_table_name == "my_sessions"
+
+
+def test_spec_from_spec_with_separate_fields() -> None:
+    """from_spec creates AsyncPostgresDb from spec with separate fields."""
+    spec = DbPostgresSpec(
+        host="db.example.com",
+        port=5433,
+        database="myapp",
+        user="appuser",
+        password="secret123",
+        db_schema="custom_schema",
+    )
+
+    db = DbPostgres.from_spec(spec)
+
+    assert isinstance(db, AsyncPostgresDb)
+    assert db.db_schema == "custom_schema"
+
+
+def test_spec_build_spec_with_connection_url(harness: ProviderHarness) -> None:
+    """_build_spec creates spec with connection_url."""
+    config = DbPostgresConfig(
+        connection_url="postgresql://user:pass@localhost:5432/db",
+        db_schema="test_schema",
+    )
+
+    resource = DbPostgres(name="test-db", config=config)
+
+    spec = resource._build_spec()
+
+    assert spec.connection_url == "postgresql://user:pass@localhost:5432/db"
+    assert spec.host is None
+    assert spec.db_schema == "test_schema"
+
+
+def test_spec_build_spec_with_separate_fields(harness: ProviderHarness) -> None:
+    """_build_spec creates spec with separate fields."""
+    config = DbPostgresConfig(
+        host="db.example.com",
+        port=5433,
+        database="myapp",
+        username="appuser",
+        password="secret123",
+        db_schema="custom_schema",
+    )
+
+    resource = DbPostgres(name="test-db", config=config)
+
+    spec = resource._build_spec()
+
+    assert spec.connection_url is None
+    assert spec.host == "db.example.com"
+    assert spec.port == 5433
+    assert spec.database == "myapp"
+    assert spec.user == "appuser"
+    assert spec.password == "secret123"
+    assert spec.db_schema == "custom_schema"
+
+
+def test_lifecycle_create_includes_spec(harness: ProviderHarness) -> None:
+    """on_create returns outputs with spec."""
+    config = DbPostgresConfig(
+        connection_url="postgresql://user:pass@localhost:5432/db",
+        db_schema="test_schema",
+    )
+
+    resource = DbPostgres(name="test-db", config=config)
+
+    outputs = resource._build_outputs()
+
+    assert outputs.spec is not None
+    assert outputs.spec.connection_url == "postgresql://user:pass@localhost:5432/db"
+    assert outputs.spec.db_schema == "test_schema"

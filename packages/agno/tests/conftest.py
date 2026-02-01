@@ -8,6 +8,8 @@ import pytest
 from agno.models.openai import OpenAIChat
 from pragma_sdk.provider import ProviderHarness
 
+from agno_provider.resources.models.openai import OpenAIModelOutputs, OpenAIModelSpec
+
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture, MockType
@@ -38,19 +40,20 @@ def mock_gke_resource(mocker: MockerFixture, mock_gke_outputs: Any) -> Any:
 
 
 @pytest.fixture
-def mock_model_outputs(mocker: MockerFixture) -> Any:
-    outputs = mocker.MagicMock()
-    outputs.model = OpenAIChat(id="gpt-4o", api_key="sk-test")
-    outputs.model_id = "gpt-4o"
-    outputs.url = "http://anthropic-messages.default.svc.cluster.local"
-    return outputs
+def mock_model_outputs() -> OpenAIModelOutputs:
+    return OpenAIModelOutputs(
+        spec=OpenAIModelSpec(
+            id="gpt-4o",
+            api_key="sk-test",
+        ),
+    )
 
 
 @pytest.fixture
-def mock_model_resource(mocker: MockerFixture, mock_model_outputs: Any) -> Any:
+def mock_model_resource(mocker: MockerFixture, mock_model_outputs: OpenAIModelOutputs) -> Any:
     resource = mocker.MagicMock()
     resource.outputs = mock_model_outputs
-    resource.model = mocker.Mock(return_value=mocker.MagicMock())
+    resource.model = mocker.Mock(return_value=OpenAIChat(id="gpt-4o", api_key="sk-test"))
     return resource
 
 

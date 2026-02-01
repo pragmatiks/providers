@@ -13,6 +13,7 @@ from agno_provider import (
     ToolsMCPConfig,
     ToolsMCPOutputs,
 )
+from agno_provider.resources.tools.mcp import ToolsMCPSpec
 
 
 if TYPE_CHECKING:
@@ -21,42 +22,44 @@ if TYPE_CHECKING:
 
 @pytest.mark.usefixtures("mock_mcp_tools")
 async def test_create_with_command(harness: ProviderHarness) -> None:
-    """on_create with stdio command discovers tools from MCP server."""
+    """on_create with stdio command returns spec with transport config."""
     config = ToolsMCPConfig(command="npx -y @modelcontextprotocol/server-github")
 
     result = await harness.invoke_create(ToolsMCP, name="github", config=config)
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is True
-    assert result.outputs.tools == ["create_issue", "list_repos", "search_code"]
-    assert "github" in result.outputs.name
+    assert result.outputs.spec.transport == "stdio"
+    assert result.outputs.spec.command == "npx"
+    assert result.outputs.spec.args == ["-y", "@modelcontextprotocol/server-github"]
 
 
 @pytest.mark.usefixtures("mock_mcp_tools")
 async def test_create_with_url(harness: ProviderHarness) -> None:
-    """on_create with SSE/HTTP URL discovers tools from MCP server."""
+    """on_create with SSE/HTTP URL returns spec with URL config."""
     config = ToolsMCPConfig(url="https://mcp.example.com/api", transport="sse")
 
     result = await harness.invoke_create(ToolsMCP, name="remote", config=config)
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is True
-    assert len(result.outputs.tools) == 3
+    assert result.outputs.spec.transport == "sse"
+    assert result.outputs.spec.url == "https://mcp.example.com/api"
 
 
-async def test_create_connection_failure(harness: ProviderHarness, mock_mcp_tools: MockType) -> None:
-    """on_create returns ready=False when MCP server connection fails."""
-    mock_mcp_tools.return_value.connect.side_effect = ConnectionError("Server unreachable")
-    config = ToolsMCPConfig(command="npx -y @modelcontextprotocol/server-github")
+@pytest.mark.usefixtures("mock_mcp_tools")
+async def test_create_with_env(harness: ProviderHarness) -> None:
+    """on_create with env variables includes them in spec."""
+    config = ToolsMCPConfig(
+        command="npx -y @modelcontextprotocol/server-github",
+        env={"GITHUB_TOKEN": "test-token"},
+    )
 
     result = await harness.invoke_create(ToolsMCP, name="github", config=config)
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is False
-    assert result.outputs.tools == []
+    assert result.outputs.spec.env == {"GITHUB_TOKEN": "test-token"}
 
 
 async def test_toolkit_returns_mcp_tools(harness: ProviderHarness, mock_mcp_tools: MockType) -> None:
@@ -124,16 +127,14 @@ async def test_toolkit_with_env(harness: ProviderHarness, mock_mcp_tools: MockTy
     assert call_kwargs["env"] == {"GITHUB_TOKEN": "test-token-123"}
 
 
-async def test_update_rediscovers_tools(
-    harness: ProviderHarness, mock_mcp_tools: MockType, mocker: MockerFixture
-) -> None:
-    """on_update reconnects and refreshes tool list."""
-    mock_mcp_tools.return_value.get_functions.return_value = {
-        "new_tool": mocker.MagicMock(),
-    }
+@pytest.mark.usefixtures("mock_mcp_tools")
+async def test_update_returns_new_spec(harness: ProviderHarness) -> None:
+    """on_update returns spec with updated config."""
     previous = ToolsMCPConfig(command="npx old-server")
     current = ToolsMCPConfig(command="npx new-server")
-    previous_outputs = ToolsMCPOutputs(name="old", tools=["old_tool"], ready=True)
+    previous_outputs = ToolsMCPOutputs(
+        spec=ToolsMCPSpec(command="npx", args=["old-server"], transport="stdio"),
+    )
 
     result = await harness.invoke_update(
         ToolsMCP,
@@ -145,7 +146,8 @@ async def test_update_rediscovers_tools(
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.tools == ["new_tool"]
+    assert result.outputs.spec.command == "npx"
+    assert result.outputs.spec.args == ["new-server"]
 
 
 @pytest.mark.usefixtures("mock_mcp_tools")
@@ -207,16 +209,14 @@ def test_resource_type() -> None:
 def test_outputs_serializable() -> None:
     """Outputs contain only serializable data."""
     outputs = ToolsMCPOutputs(
-        name="github",
-        tools=["create_issue", "list_repos"],
-        ready=True,
+        spec=ToolsMCPSpec(command="npx", args=["-y", "@modelcontextprotocol/server-github"], transport="stdio"),
     )
 
     serialized = outputs.model_dump_json()
 
-    assert "github" in serialized
-    assert "create_issue" in serialized
-    assert "true" in serialized.lower()
+    assert "npx" in serialized
+    assert "server-github" in serialized
+    assert "stdio" in serialized
 
 
 def test_config_defaults() -> None:
@@ -229,30 +229,6 @@ def test_config_defaults() -> None:
     assert config.include_tools is None
     assert config.exclude_tools is None
     assert config.tool_name_prefix is None
-
-
-def test_server_name_from_npm_package() -> None:
-    """Server name extracted from npm package in command."""
-    config = ToolsMCPConfig(command="npx -y @modelcontextprotocol/server-github")
-    resource = ToolsMCP(name="test", config=config, outputs=None)
-
-    assert resource._server_name() == "server-github"
-
-
-def test_server_name_from_uvx_command() -> None:
-    """Server name extracted from uvx command."""
-    config = ToolsMCPConfig(command="uvx mcp-server-git")
-    resource = ToolsMCP(name="test", config=config, outputs=None)
-
-    assert resource._server_name() == "mcp-server-git"
-
-
-def test_server_name_from_url() -> None:
-    """Server name extracted from URL hostname."""
-    config = ToolsMCPConfig(url="https://mcp.example.com/api")
-    resource = ToolsMCP(name="test", config=config, outputs=None)
-
-    assert resource._server_name() == "mcp.example.com"
 
 
 def test_static_headers_passed_to_mcp_tools(mock_mcp_tools: MockType) -> None:

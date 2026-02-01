@@ -6,10 +6,10 @@ from agno.models.openai import OpenAIChat
 from pragma_sdk import LifecycleState
 
 from agno_provider import (
-    ModelOutputs,
     OpenAIModel,
     OpenAIModelConfig,
 )
+from agno_provider.resources.models.openai import OpenAIModelOutputs, OpenAIModelSpec
 
 
 def create_openai_model(
@@ -27,7 +27,7 @@ def create_openai_model(
     max_retries: int | None = None,
     organization: str | None = None,
     base_url: str | None = None,
-    outputs: ModelOutputs | None = None,
+    outputs: OpenAIModelOutputs | None = None,
 ) -> OpenAIModel:
     """Create an OpenAIModel resource for testing."""
     config = OpenAIModelConfig(
@@ -54,177 +54,202 @@ def create_openai_model(
     )
 
 
-def test_model_returns_openai_chat_instance() -> None:
-    """Test that model() returns an actual OpenAIChat instance."""
-    resource = create_openai_model(
-        name="gpt4",
-        model_id="gpt-4o",
+def test_from_spec_returns_openai_chat_instance() -> None:
+    """Test that from_spec() returns an actual OpenAIChat instance."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
         api_key="sk-test-key",
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert isinstance(result, OpenAIChat)
 
 
-def test_model_passes_api_key_to_openai_chat() -> None:
+def test_from_spec_passes_api_key_to_openai_chat() -> None:
     """Test that API key is passed to OpenAIChat."""
-    resource = create_openai_model(
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
         api_key="sk-my-secret-key",
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.api_key == "sk-my-secret-key"
 
 
-def test_model_passes_model_id_to_openai_chat() -> None:
+def test_from_spec_passes_model_id_to_openai_chat() -> None:
     """Test that model ID is passed to OpenAIChat."""
-    resource = create_openai_model(
-        model_id="gpt-4o-mini",
+    spec = OpenAIModelSpec(
+        id="gpt-4o-mini",
+        api_key="sk-test-key",
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.id == "gpt-4o-mini"
 
 
-def test_model_with_max_tokens() -> None:
-    """Test model() with max_tokens parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_max_tokens() -> None:
+    """Test from_spec() with max_tokens parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         max_tokens=4096,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.max_tokens == 4096
 
 
-def test_model_with_temperature() -> None:
-    """Test model() with temperature parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_temperature() -> None:
+    """Test from_spec() with temperature parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         temperature=0.7,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.temperature == 0.7
 
 
-def test_model_with_top_p() -> None:
-    """Test model() with top_p parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_top_p() -> None:
+    """Test from_spec() with top_p parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         top_p=0.9,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.top_p == 0.9
 
 
-def test_model_with_frequency_penalty() -> None:
-    """Test model() with frequency_penalty parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_frequency_penalty() -> None:
+    """Test from_spec() with frequency_penalty parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         frequency_penalty=0.5,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.frequency_penalty == 0.5
 
 
-def test_model_with_presence_penalty() -> None:
-    """Test model() with presence_penalty parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_presence_penalty() -> None:
+    """Test from_spec() with presence_penalty parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         presence_penalty=0.3,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.presence_penalty == 0.3
 
 
-def test_model_with_seed() -> None:
-    """Test model() with seed parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_seed() -> None:
+    """Test from_spec() with seed parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         seed=42,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.seed == 42
 
 
-def test_model_with_stop_string() -> None:
-    """Test model() with stop parameter as string."""
-    resource = create_openai_model(
+def test_from_spec_with_stop_string() -> None:
+    """Test from_spec() with stop parameter as string."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         stop="###",
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.stop == "###"
 
 
-def test_model_with_stop_list() -> None:
-    """Test model() with stop parameter as list."""
-    resource = create_openai_model(
+def test_from_spec_with_stop_list() -> None:
+    """Test from_spec() with stop parameter as list."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         stop=["###", "END"],
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.stop == ["###", "END"]
 
 
-def test_model_with_timeout() -> None:
-    """Test model() with timeout parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_timeout() -> None:
+    """Test from_spec() with timeout parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         timeout=30.0,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.timeout == 30.0
 
 
-def test_model_with_max_retries() -> None:
-    """Test model() with max_retries parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_max_retries() -> None:
+    """Test from_spec() with max_retries parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         max_retries=5,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.max_retries == 5
 
 
-def test_model_with_organization() -> None:
-    """Test model() with organization parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_organization() -> None:
+    """Test from_spec() with organization parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         organization="org-123",
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.organization == "org-123"
 
 
-def test_model_with_base_url() -> None:
-    """Test model() with base_url parameter."""
-    resource = create_openai_model(
+def test_from_spec_with_base_url() -> None:
+    """Test from_spec() with base_url parameter."""
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
+        api_key="sk-test-key",
         base_url="https://custom-openai.example.com/v1",
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert str(result.base_url) == "https://custom-openai.example.com/v1"
 
 
-def test_model_with_all_parameters() -> None:
-    """Test model() with all optional parameters."""
-    resource = create_openai_model(
-        model_id="gpt-4-turbo",
+def test_from_spec_with_all_parameters() -> None:
+    """Test from_spec() with all optional parameters."""
+    spec = OpenAIModelSpec(
+        id="gpt-4-turbo",
         api_key="sk-full-test",
         max_tokens=2048,
         temperature=0.8,
@@ -239,7 +264,7 @@ def test_model_with_all_parameters() -> None:
         base_url="https://api.example.com",
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert result.id == "gpt-4-turbo"
     assert result.api_key == "sk-full-test"
@@ -265,8 +290,8 @@ async def test_on_create_returns_serializable_outputs() -> None:
 
     result = await resource.on_create()
 
-    assert isinstance(result, ModelOutputs)
-    assert result.model_id == "gpt-4o"
+    assert isinstance(result, OpenAIModelOutputs)
+    assert result.spec.id == "gpt-4o"
     assert not hasattr(result, "model") or not isinstance(getattr(result, "model", None), OpenAIChat)
 
 
@@ -285,8 +310,8 @@ async def test_on_update_returns_serializable_outputs() -> None:
 
     result = await resource.on_update(previous_config)
 
-    assert isinstance(result, ModelOutputs)
-    assert result.model_id == "gpt-4o-mini"
+    assert isinstance(result, OpenAIModelOutputs)
+    assert result.spec.id == "gpt-4o-mini"
 
 
 async def test_delete_is_noop() -> None:
@@ -317,13 +342,13 @@ def test_config_accepts_various_model_ids() -> None:
 
 def test_openai_chat_instance_is_usable() -> None:
     """Test that the returned OpenAIChat instance has expected attributes."""
-    resource = create_openai_model(
-        model_id="gpt-4o",
+    spec = OpenAIModelSpec(
+        id="gpt-4o",
         api_key="sk-test-key",
         temperature=0.7,
     )
 
-    result = resource.model()
+    result = OpenAIModel.from_spec(spec)
 
     assert hasattr(result, "id")
     assert hasattr(result, "api_key")
@@ -334,9 +359,11 @@ def test_openai_chat_instance_is_usable() -> None:
 
 def test_outputs_are_serializable() -> None:
     """Test that outputs can be serialized to JSON (no arbitrary types)."""
-    outputs = ModelOutputs(model_id="gpt-4o")
+    outputs = OpenAIModelOutputs(
+        spec=OpenAIModelSpec(id="gpt-4o", api_key="sk-test"),
+    )
 
     json_data = outputs.model_dump_json()
 
     assert "gpt-4o" in json_data
-    assert "model_id" in json_data
+    assert "spec" in json_data

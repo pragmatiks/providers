@@ -10,51 +10,56 @@ from agno_provider import (
     ToolsWebSearchConfig,
     ToolsWebSearchOutputs,
 )
+from agno_provider.resources.tools.websearch import ToolsWebSearchSpec
 
 
 async def test_create_default_config(harness: ProviderHarness) -> None:
-    """on_create with default config returns both tools enabled."""
+    """on_create with default config returns spec with both enabled."""
     config = ToolsWebSearchConfig()
 
     result = await harness.invoke_create(ToolsWebSearch, name="search", config=config)
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.tools == ["web_search", "search_news"]
+    assert result.outputs.spec.enable_search is True
+    assert result.outputs.spec.enable_news is True
     assert result.outputs.pip_dependencies == ["ddgs>=8.0.0"]
 
 
 async def test_create_search_only(harness: ProviderHarness) -> None:
-    """on_create with news disabled returns only web_search."""
+    """on_create with news disabled returns spec with search only."""
     config = ToolsWebSearchConfig(enable_news=False)
 
     result = await harness.invoke_create(ToolsWebSearch, name="search", config=config)
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.tools == ["web_search"]
+    assert result.outputs.spec.enable_search is True
+    assert result.outputs.spec.enable_news is False
 
 
 async def test_create_news_only(harness: ProviderHarness) -> None:
-    """on_create with search disabled returns only search_news."""
+    """on_create with search disabled returns spec with news only."""
     config = ToolsWebSearchConfig(enable_search=False)
 
     result = await harness.invoke_create(ToolsWebSearch, name="news", config=config)
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.tools == ["search_news"]
+    assert result.outputs.spec.enable_search is False
+    assert result.outputs.spec.enable_news is True
 
 
 async def test_create_neither_enabled(harness: ProviderHarness) -> None:
-    """on_create with both disabled returns empty tools list."""
+    """on_create with both disabled returns spec with both false."""
     config = ToolsWebSearchConfig(enable_search=False, enable_news=False)
 
     result = await harness.invoke_create(ToolsWebSearch, name="empty", config=config)
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.tools == []
+    assert result.outputs.spec.enable_search is False
+    assert result.outputs.spec.enable_news is False
 
 
 async def test_toolkit_returns_websearch_tools(harness: ProviderHarness) -> None:
@@ -126,12 +131,12 @@ async def test_toolkit_with_backend(harness: ProviderHarness) -> None:
 
 
 async def test_update_changes_outputs(harness: ProviderHarness) -> None:
-    """on_update returns updated metadata."""
+    """on_update returns updated spec."""
     previous = ToolsWebSearchConfig(enable_news=True)
     current = ToolsWebSearchConfig(enable_news=False)
     previous_outputs = ToolsWebSearchOutputs(
-        tools=["web_search", "search_news"],
         pip_dependencies=["ddgs>=8.0.0"],
+        spec=ToolsWebSearchSpec(enable_search=True, enable_news=True),
     )
 
     result = await harness.invoke_update(
@@ -144,7 +149,8 @@ async def test_update_changes_outputs(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.tools == ["web_search"]
+    assert result.outputs.spec.enable_search is True
+    assert result.outputs.spec.enable_news is False
 
 
 async def test_delete_success(harness: ProviderHarness) -> None:
@@ -169,13 +175,13 @@ def test_resource_type() -> None:
 def test_outputs_serializable() -> None:
     """Outputs contain only serializable data."""
     outputs = ToolsWebSearchOutputs(
-        tools=["web_search", "search_news"],
         pip_dependencies=["ddgs>=8.0.0"],
+        spec=ToolsWebSearchSpec(enable_search=True, enable_news=True),
     )
 
     serialized = outputs.model_dump_json()
 
-    assert "web_search" in serialized
+    assert "enable_search" in serialized
     assert "ddgs>=8.0.0" in serialized
 
 

@@ -6,8 +6,98 @@ from typing import ClassVar
 from urllib.parse import quote, urlparse, urlunparse
 
 from agno.db.postgres import AsyncPostgresDb
-from pragma_sdk import Config, Field, Outputs, Resource
-from pydantic import model_validator
+from pragma_sdk import Config, Field, Outputs
+from pydantic import computed_field, model_validator
+
+from agno_provider.resources.base import AgnoResource, AgnoSpec
+
+
+class DbPostgresSpec(AgnoSpec):
+    """Specification for AsyncPostgresDb runtime construction.
+
+    Contains all configuration needed to reconstruct an AsyncPostgresDb
+    at runtime.
+
+    Attributes:
+        connection_url: Full connection URL.
+        host: Database host.
+        port: Database port.
+        database: Database name.
+        user: Database username.
+        password: Database password.
+        db_schema: Database schema for Agno tables.
+        session_table: Custom table name for sessions.
+        memory_table: Custom table name for memories.
+    """
+
+    connection_url: str | None = None
+    host: str | None = None
+    port: int | None = None
+    database: str | None = None
+    user: str | None = None
+    password: str | None = None
+    db_schema: str = "ai"
+    session_table: str | None = None
+    memory_table: str | None = None
+
+    @computed_field
+    @property
+    def db_url(self) -> str:
+        """Build the async PostgreSQL connection URL from spec fields.
+
+        Returns:
+            Connection URL with postgresql+psycopg_async:// scheme.
+
+        Raises:
+            ValueError: If required fields are missing when not using connection_url.
+        """
+        if self.connection_url is not None:
+            url = self.connection_url
+
+            if self.user is not None and self.password is not None:
+                url = self._inject_credentials(url, self.user, self.password)
+
+            return url.replace("postgresql://", "postgresql+psycopg_async://")
+
+        if self.user is None or self.password is None:
+            msg = "user and password are required when not using connection_url"
+            raise ValueError(msg)
+
+        if self.host is None or self.database is None:
+            msg = "host and database are required when not using connection_url"
+            raise ValueError(msg)
+
+        encoded_user = quote(self.user, safe="")
+        encoded_pass = quote(self.password, safe="")
+        port = self.port or 5432
+
+        return f"postgresql+psycopg_async://{encoded_user}:{encoded_pass}@{self.host}:{port}/{self.database}"
+
+    @staticmethod
+    def _inject_credentials(url: str, username: str, password: str) -> str:
+        """Inject credentials into URL if not already present.
+
+        Args:
+            url: The connection URL.
+            username: Username to inject.
+            password: Password to inject.
+
+        Returns:
+            URL with credentials injected and encoded.
+        """
+        parsed = urlparse(url)
+
+        if parsed.username:
+            return url
+
+        encoded_user = quote(username, safe="")
+        encoded_pass = quote(password, safe="")
+        netloc = f"{encoded_user}:{encoded_pass}@{parsed.hostname}"
+
+        if parsed.port:
+            netloc += f":{parsed.port}"
+
+        return urlunparse(parsed._replace(netloc=netloc))
 
 
 class DbPostgresConfig(Config):
@@ -71,27 +161,21 @@ class DbPostgresOutputs(Outputs):
     """Outputs from Agno AsyncPostgresDb resource.
 
     Attributes:
-        ready: Whether the database connection is configured.
-        db_schema: The configured database schema.
+        spec: The database specification for runtime reconstruction.
     """
 
-    ready: bool
-    db_schema: str
+    spec: DbPostgresSpec
 
 
-class DbPostgres(Resource[DbPostgresConfig, DbPostgresOutputs]):
+class DbPostgres(AgnoResource[DbPostgresConfig, DbPostgresOutputs, DbPostgresSpec]):
     """Agno AsyncPostgresDb resource for agent storage.
 
     Wraps Agno's AsyncPostgresDb to provide PostgreSQL storage for agents.
-    Dependent resources receive this resource and call db() to get the
-    configured AsyncPostgresDb instance.
+    The database instance is created via from_spec() at runtime.
 
-    Usage by dependent resources:
-        storage: Dependency[DbPostgres]
-
-        async def on_create(self):
-            db = self.storage.db()
-            agent = Agent(db=db, ...)
+    Runtime reconstruction via spec:
+        db = DbPostgres.from_spec(spec)
+        agent = Agent(db=db, ...)
 
     Lifecycle:
         - on_create: Return serializable metadata (no actual DB setup)
@@ -101,6 +185,78 @@ class DbPostgres(Resource[DbPostgresConfig, DbPostgresOutputs]):
 
     provider: ClassVar[str] = "agno"
     resource: ClassVar[str] = "db/postgres"
+
+    @staticmethod
+    def from_spec(spec: DbPostgresSpec) -> AsyncPostgresDb:
+        """Factory: construct Agno AsyncPostgresDb from spec.
+
+        Args:
+            spec: The database specification.
+
+        Returns:
+            Configured AsyncPostgresDb instance.
+        """
+        kwargs: dict = {
+            "db_url": spec.db_url,
+            "db_schema": spec.db_schema,
+        }
+
+        if spec.session_table:
+            kwargs["session_table"] = spec.session_table
+
+        if spec.memory_table:
+            kwargs["memory_table"] = spec.memory_table
+
+        return AsyncPostgresDb(**kwargs)
+
+    def _build_spec(self) -> DbPostgresSpec:
+        """Build the database specification for runtime reconstruction.
+
+        Returns:
+            DbPostgresSpec with configuration.
+        """
+        connection_url = None
+        password = None
+        host = None
+        port = None
+        database = None
+        user = None
+
+        if self.config.connection_url is not None:
+            connection_url = str(self.config.connection_url)
+
+            if self.config.username is not None:
+                user = str(self.config.username)
+
+            if self.config.password is not None:
+                password = str(self.config.password)
+
+        else:
+            host = str(self.config.host)
+            port = self.config.port
+            database = str(self.config.database)
+            user = str(self.config.username)
+            password = str(self.config.password)
+
+        return DbPostgresSpec(
+            connection_url=connection_url,
+            host=host,
+            port=port,
+            database=database,
+            user=user,
+            password=password,
+            db_schema=self.config.db_schema,
+            session_table=self.config.session_table,
+            memory_table=self.config.memory_table,
+        )
+
+    def _build_outputs(self) -> DbPostgresOutputs:
+        """Build outputs from current config.
+
+        Returns:
+            DbPostgresOutputs with spec.
+        """
+        return DbPostgresOutputs(spec=self._build_spec())
 
     def _build_url(self) -> str:
         """Build the async PostgreSQL connection URL.
@@ -152,37 +308,13 @@ class DbPostgres(Resource[DbPostgresConfig, DbPostgresOutputs]):
 
         return urlunparse(parsed._replace(netloc=netloc))
 
-    def db(self) -> AsyncPostgresDb:
-        """Return configured AsyncPostgresDb instance.
-
-        Called by dependent resources (e.g., agno/agent) that need
-        the database instance for agent storage.
-
-        Returns:
-            Configured AsyncPostgresDb ready for use.
-        """
-        url = self._build_url()
-
-        kwargs: dict = {
-            "db_url": url,
-            "db_schema": self.config.db_schema,
-        }
-
-        if self.config.session_table:
-            kwargs["session_table"] = self.config.session_table
-
-        if self.config.memory_table:
-            kwargs["memory_table"] = self.config.memory_table
-
-        return AsyncPostgresDb(**kwargs)
-
     async def on_create(self) -> DbPostgresOutputs:
         """Create resource and return serializable outputs.
 
         Returns:
             DbPostgresOutputs with configuration metadata.
         """
-        return DbPostgresOutputs(ready=True, db_schema=self.config.db_schema)
+        return self._build_outputs()
 
     async def on_update(self, previous_config: DbPostgresConfig) -> DbPostgresOutputs:  # noqa: ARG002
         """Update resource and return serializable outputs.
@@ -190,7 +322,7 @@ class DbPostgres(Resource[DbPostgresConfig, DbPostgresOutputs]):
         Returns:
             DbPostgresOutputs with updated configuration metadata.
         """
-        return DbPostgresOutputs(ready=True, db_schema=self.config.db_schema)
+        return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete is a no-op since this resource is stateless."""

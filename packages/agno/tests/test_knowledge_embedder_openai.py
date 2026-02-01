@@ -15,6 +15,7 @@ from agno_provider import (
     EmbedderOpenAIConfig,
     EmbedderOpenAIOutputs,
 )
+from agno_provider.resources.knowledge.embedder.openai import EmbedderOpenAISpec
 
 
 if TYPE_CHECKING:
@@ -105,126 +106,116 @@ def test_config_validation_encoding_format_base64() -> None:
 
 
 def test_outputs_schema_contain_expected_fields() -> None:
-    """Outputs contain model, dimensions, pip_dependencies, ready."""
+    """Outputs contain pip_dependencies and spec."""
     outputs = EmbedderOpenAIOutputs(
-        model="text-embedding-3-small",
-        dimensions=1536,
         pip_dependencies=[],
-        ready=True,
+        spec=EmbedderOpenAISpec(
+            id="text-embedding-3-small",
+            api_key="sk-test-key",
+        ),
     )
 
-    assert outputs.model == "text-embedding-3-small"
-    assert outputs.dimensions == 1536
     assert outputs.pip_dependencies == []
-    assert outputs.ready is True
+    assert outputs.spec.id == "text-embedding-3-small"
+    assert outputs.spec.api_key == "sk-test-key"
 
 
 def test_outputs_schema_are_serializable() -> None:
     """Outputs can be serialized to JSON."""
     outputs = EmbedderOpenAIOutputs(
-        model="text-embedding-3-large",
-        dimensions=3072,
         pip_dependencies=[],
-        ready=True,
+        spec=EmbedderOpenAISpec(
+            id="text-embedding-3-large",
+            api_key="sk-test-key",
+            dimensions=3072,
+        ),
     )
 
     serialized = outputs.model_dump_json()
 
-    assert "model" in serialized
-    assert "dimensions" in serialized
     assert "pip_dependencies" in serialized
-    assert "ready" in serialized
+    assert "spec" in serialized
     assert "text-embedding-3-large" in serialized
 
 
-def test_dimensions_mapping_text_embedding_3_small() -> None:
-    """text-embedding-3-small returns 1536 dimensions."""
-    resource = create_embedder_openai(model_id="text-embedding-3-small")
-    assert resource._get_dimensions() == 1536
-
-
-def test_dimensions_mapping_text_embedding_3_large() -> None:
-    """text-embedding-3-large returns 3072 dimensions."""
-    resource = create_embedder_openai(model_id="text-embedding-3-large")
-    assert resource._get_dimensions() == 3072
-
-
-def test_dimensions_mapping_text_embedding_ada_002() -> None:
-    """text-embedding-ada-002 returns 1536 dimensions."""
-    resource = create_embedder_openai(model_id="text-embedding-ada-002")
-    assert resource._get_dimensions() == 1536
-
-
-def test_dimensions_mapping_unknown_model_defaults_to_1536() -> None:
-    """Unknown model defaults to 1536 dimensions."""
-    resource = create_embedder_openai(model_id="unknown-model")
-    assert resource._get_dimensions() == 1536
-
-
-def test_dimensions_mapping_custom_dimensions_override() -> None:
-    """Custom dimensions override model defaults."""
-    resource = create_embedder_openai(
-        model_id="text-embedding-3-large",
-        dimensions=512,
+def test_from_spec_returns_openai_embedder_instance() -> None:
+    """from_spec() returns an OpenAIEmbedder instance."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
+        api_key="sk-test-key",
     )
-    assert resource._get_dimensions() == 512
-
-
-def test_embedder_method_returns_openai_embedder_instance() -> None:
-    """embedder() returns an OpenAIEmbedder instance."""
-    resource = create_embedder_openai()
-    result = resource.embedder()
+    result = EmbedderOpenAI.from_spec(spec)
     assert isinstance(result, OpenAIEmbedder)
 
 
-def test_embedder_method_passes_model_id() -> None:
-    """embedder() passes model ID correctly."""
-    resource = create_embedder_openai(model_id="text-embedding-3-large")
-    result = resource.embedder()
+def test_from_spec_passes_model_id() -> None:
+    """from_spec() passes model ID correctly."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-large",
+        api_key="sk-test-key",
+    )
+    result = EmbedderOpenAI.from_spec(spec)
     assert result.id == "text-embedding-3-large"
 
 
-def test_embedder_method_passes_api_key() -> None:
-    """embedder() passes API key correctly."""
-    resource = create_embedder_openai(api_key="sk-secret-key")
-    result = resource.embedder()
+def test_from_spec_passes_api_key() -> None:
+    """from_spec() passes API key correctly."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
+        api_key="sk-secret-key",
+    )
+    result = EmbedderOpenAI.from_spec(spec)
     assert result.api_key == "sk-secret-key"
 
 
-def test_embedder_method_passes_encoding_format() -> None:
-    """embedder() passes encoding format correctly."""
-    resource = create_embedder_openai(encoding_format="base64")
-    result = resource.embedder()
+def test_from_spec_passes_encoding_format() -> None:
+    """from_spec() passes encoding format correctly."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
+        api_key="sk-test-key",
+        encoding_format="base64",
+    )
+    result = EmbedderOpenAI.from_spec(spec)
     assert result.encoding_format == "base64"
 
 
-def test_embedder_method_passes_custom_dimensions() -> None:
-    """embedder() passes custom dimensions when specified."""
-    resource = create_embedder_openai(dimensions=256)
-    result = resource.embedder()
+def test_from_spec_passes_custom_dimensions() -> None:
+    """from_spec() passes custom dimensions when specified."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
+        api_key="sk-test-key",
+        dimensions=256,
+    )
+    result = EmbedderOpenAI.from_spec(spec)
     assert result.dimensions == 256
 
 
-def test_embedder_method_passes_organization() -> None:
-    """embedder() passes organization when specified."""
-    resource = create_embedder_openai(organization="org-test-123")
-    result = resource.embedder()
+def test_from_spec_passes_organization() -> None:
+    """from_spec() passes organization when specified."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
+        api_key="sk-test-key",
+        organization="org-test-123",
+    )
+    result = EmbedderOpenAI.from_spec(spec)
     assert result.organization == "org-test-123"
 
 
-def test_embedder_method_passes_base_url() -> None:
-    """embedder() passes base_url when specified."""
-    resource = create_embedder_openai(
+def test_from_spec_passes_base_url() -> None:
+    """from_spec() passes base_url when specified."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
+        api_key="sk-test-key",
         base_url="https://custom-openai.example.com/v1",
     )
-    result = resource.embedder()
+    result = EmbedderOpenAI.from_spec(spec)
     assert str(result.base_url) == "https://custom-openai.example.com/v1"
 
 
-def test_embedder_method_with_all_parameters() -> None:
-    """embedder() passes all parameters correctly."""
-    resource = create_embedder_openai(
-        model_id="text-embedding-3-small",
+def test_from_spec_with_all_parameters() -> None:
+    """from_spec() passes all parameters correctly."""
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
         api_key="sk-full-test",
         dimensions=512,
         encoding_format="float",
@@ -232,7 +223,7 @@ def test_embedder_method_with_all_parameters() -> None:
         base_url="https://api.example.com",
     )
 
-    result = resource.embedder()
+    result = EmbedderOpenAI.from_spec(spec)
 
     assert result.id == "text-embedding-3-small"
     assert result.api_key == "sk-full-test"
@@ -251,10 +242,8 @@ async def test_lifecycle_on_create_returns_outputs() -> None:
     result = await resource.on_create()
 
     assert isinstance(result, EmbedderOpenAIOutputs)
-    assert result.model == "text-embedding-3-small"
-    assert result.dimensions == 1536
+    assert result.spec.id == "text-embedding-3-small"
     assert result.pip_dependencies == []
-    assert result.ready is True
 
 
 async def test_lifecycle_on_create_with_custom_dimensions() -> None:
@@ -266,7 +255,7 @@ async def test_lifecycle_on_create_with_custom_dimensions() -> None:
 
     result = await resource.on_create()
 
-    assert result.dimensions == 256
+    assert result.spec.dimensions == 256
 
 
 async def test_lifecycle_on_update_returns_outputs() -> None:
@@ -283,8 +272,7 @@ async def test_lifecycle_on_update_returns_outputs() -> None:
     result = await resource.on_update(previous_config)
 
     assert isinstance(result, EmbedderOpenAIOutputs)
-    assert result.model == "text-embedding-3-large"
-    assert result.dimensions == 3072
+    assert result.spec.id == "text-embedding-3-large"
 
 
 async def test_lifecycle_on_delete_is_noop() -> None:
@@ -308,10 +296,8 @@ async def test_harness_create_returns_outputs(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.model == "text-embedding-3-small"
-    assert result.outputs.dimensions == 1536
+    assert result.outputs.spec.id == "text-embedding-3-small"
     assert result.outputs.pip_dependencies == []
-    assert result.outputs.ready is True
 
 
 async def test_harness_update_returns_outputs(harness: ProviderHarness) -> None:
@@ -325,10 +311,11 @@ async def test_harness_update_returns_outputs(harness: ProviderHarness) -> None:
         api_key="sk-new-key",
     )
     current_outputs = EmbedderOpenAIOutputs(
-        model="text-embedding-3-small",
-        dimensions=1536,
         pip_dependencies=[],
-        ready=True,
+        spec=EmbedderOpenAISpec(
+            id="text-embedding-3-small",
+            api_key="sk-old-key",
+        ),
     )
 
     result = await harness.invoke_update(
@@ -341,8 +328,7 @@ async def test_harness_update_returns_outputs(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.model == "text-embedding-3-large"
-    assert result.outputs.dimensions == 3072
+    assert result.outputs.spec.id == "text-embedding-3-large"
 
 
 async def test_harness_delete_success(harness: ProviderHarness) -> None:
@@ -361,19 +347,19 @@ async def test_harness_delete_success(harness: ProviderHarness) -> None:
     assert result.success
 
 
-def test_mocked_embedder_instantiation(mocker: MockerFixture) -> None:
-    """embedder() instantiation can be mocked."""
+def test_mocked_from_spec_instantiation(mocker: MockerFixture) -> None:
+    """from_spec() instantiation can be mocked."""
     mock_embedder_class = mocker.patch("agno_provider.resources.knowledge.embedder.openai.OpenAIEmbedder")
     mock_instance = mocker.MagicMock()
     mock_embedder_class.return_value = mock_instance
 
-    resource = create_embedder_openai(
-        model_id="text-embedding-3-small",
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
         api_key="sk-mock-key",
         dimensions=512,
     )
 
-    result = resource.embedder()
+    result = EmbedderOpenAI.from_spec(spec)
 
     mock_embedder_class.assert_called_once_with(
         id="text-embedding-3-small",
@@ -384,31 +370,33 @@ def test_mocked_embedder_instantiation(mocker: MockerFixture) -> None:
     assert result is mock_instance
 
 
-def test_mocked_embedder_with_organization(mocker: MockerFixture) -> None:
-    """embedder() with organization passes it to constructor."""
+def test_mocked_from_spec_with_organization(mocker: MockerFixture) -> None:
+    """from_spec() with organization passes it to constructor."""
     mock_embedder_class = mocker.patch("agno_provider.resources.knowledge.embedder.openai.OpenAIEmbedder")
 
-    resource = create_embedder_openai(
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
         api_key="sk-mock-key",
         organization="org-mocked",
     )
 
-    resource.embedder()
+    EmbedderOpenAI.from_spec(spec)
 
     call_kwargs = mock_embedder_class.call_args.kwargs
     assert call_kwargs["organization"] == "org-mocked"
 
 
-def test_mocked_embedder_with_base_url(mocker: MockerFixture) -> None:
-    """embedder() with base_url passes it to constructor."""
+def test_mocked_from_spec_with_base_url(mocker: MockerFixture) -> None:
+    """from_spec() with base_url passes it to constructor."""
     mock_embedder_class = mocker.patch("agno_provider.resources.knowledge.embedder.openai.OpenAIEmbedder")
 
-    resource = create_embedder_openai(
+    spec = EmbedderOpenAISpec(
+        id="text-embedding-3-small",
         api_key="sk-mock-key",
         base_url="https://mock-api.example.com",
     )
 
-    resource.embedder()
+    EmbedderOpenAI.from_spec(spec)
 
     call_kwargs = mock_embedder_class.call_args.kwargs
     assert call_kwargs["base_url"] == "https://mock-api.example.com"

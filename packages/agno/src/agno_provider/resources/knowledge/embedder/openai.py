@@ -1,15 +1,17 @@
 """OpenAI embedder resource wrapping Agno's OpenAIEmbedder.
 
-Provides an embedder() method that returns an OpenAIEmbedder instance for use
-by dependent resources (e.g., agno/vectordb/qdrant).
+Provides a from_spec() method that returns an OpenAIEmbedder instance for use
+by dependent resources at runtime.
 """
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Literal
+from typing import ClassVar, Literal
 
 from agno.knowledge.embedder.openai import OpenAIEmbedder
-from pragma_sdk import Config, Field, Outputs, Resource
+from pragma_sdk import Config, Field, Outputs
+
+from agno_provider.resources.base import AgnoResource, AgnoSpec
 
 
 EMBEDDING_DIMENSIONS = {
@@ -17,6 +19,28 @@ EMBEDDING_DIMENSIONS = {
     "text-embedding-3-large": 3072,
     "text-embedding-ada-002": 1536,
 }
+
+
+class EmbedderOpenAISpec(AgnoSpec):
+    """Specification for reconstructing OpenAI embedder at runtime.
+
+    Contains all necessary information to create an OpenAIEmbedder instance.
+
+    Attributes:
+        id: OpenAI embedding model identifier (e.g., "text-embedding-3-small").
+        api_key: OpenAI API key.
+        dimensions: Override embedding dimensions (only for text-embedding-3-* models).
+        encoding_format: Response encoding format.
+        organization: OpenAI organization ID.
+        base_url: Custom base URL for OpenAI-compatible APIs.
+    """
+
+    id: str
+    api_key: str
+    dimensions: int | None = None
+    encoding_format: Literal["float", "base64"] = "float"
+    organization: str | None = None
+    base_url: str | None = None
 
 
 class EmbedderOpenAIConfig(Config):
@@ -44,102 +68,91 @@ class EmbedderOpenAIOutputs(Outputs):
     """Serializable outputs from OpenAI embedder resource.
 
     Attributes:
-        model: The configured embedding model identifier.
-        dimensions: Embedding dimensions.
         pip_dependencies: Python packages required for this configuration.
-        ready: Whether the embedder is ready for use.
+        spec: Specification for reconstructing the embedder at runtime.
     """
 
-    model: str
-    dimensions: int
     pip_dependencies: list[str]
-    ready: bool
+    spec: EmbedderOpenAISpec
 
 
-class EmbedderOpenAI(Resource[EmbedderOpenAIConfig, EmbedderOpenAIOutputs]):
+class EmbedderOpenAI(AgnoResource[EmbedderOpenAIConfig, EmbedderOpenAIOutputs, EmbedderOpenAISpec]):
     """OpenAI embedder resource wrapping Agno's OpenAIEmbedder.
 
     This resource is stateless - it just wraps configuration. The actual
-    OpenAIEmbedder instance is created on-demand via the embedder() method.
+    OpenAIEmbedder instance is created via from_spec() at runtime.
 
     Lifecycle:
         - on_create: Return serializable metadata
         - on_update: Return updated metadata
         - on_delete: No-op (stateless)
 
-    Example usage with Qdrant:
-        ```python
-        embedder_resource = await embedder_dependency.resolve()
-        vectordb = Qdrant(
-            collection="embeddings",
-            url="http://localhost:6333",
-            embedder=embedder_resource.embedder(),
-        )
-        ```
+    Runtime reconstruction via spec:
+        embedder = EmbedderOpenAI.from_spec(spec)
     """
 
     provider: ClassVar[str] = "agno"
     resource: ClassVar[str] = "knowledge/embedder/openai"
 
-    def embedder(self) -> OpenAIEmbedder:
-        """Returns the configured OpenAIEmbedder instance.
+    @staticmethod
+    def from_spec(spec: EmbedderOpenAISpec) -> OpenAIEmbedder:
+        """Factory: construct Agno embedder from spec.
 
-        Called by dependent resources (e.g., agno/vectordb/qdrant) that need
-        the actual SDK object.
-        """
-        kwargs: dict[str, Any] = {
-            "id": self.config.id,
-            "api_key": str(self.config.api_key),
-            "encoding_format": self.config.encoding_format,
-        }
-
-        if self.config.dimensions is not None:
-            kwargs["dimensions"] = self.config.dimensions
-
-        if self.config.organization is not None:
-            kwargs["organization"] = self.config.organization
-
-        if self.config.base_url is not None:
-            kwargs["base_url"] = self.config.base_url
-
-        return OpenAIEmbedder(**kwargs)
-
-    def _get_dimensions(self) -> int:
-        """Get embedding dimensions for the configured model.
+        Args:
+            spec: The embedder specification.
 
         Returns:
-            Embedding dimensions for the model.
+            Configured OpenAIEmbedder instance.
         """
-        if self.config.dimensions is not None:
-            return self.config.dimensions
+        return OpenAIEmbedder(**spec.model_dump(exclude_none=True))
 
-        return EMBEDDING_DIMENSIONS.get(self.config.id, 1536)
+    def _build_spec(self) -> EmbedderOpenAISpec:
+        """Build spec from current config.
+
+        Creates a specification that can be serialized and used to
+        reconstruct the embedder at runtime.
+
+        Returns:
+            EmbedderOpenAISpec with all configuration fields.
+        """
+        return EmbedderOpenAISpec(
+            id=self.config.id,
+            api_key=str(self.config.api_key),
+            dimensions=self.config.dimensions,
+            encoding_format=self.config.encoding_format,
+            organization=self.config.organization,
+            base_url=self.config.base_url,
+        )
+
+    def _build_outputs(self) -> EmbedderOpenAIOutputs:
+        """Build outputs from current config.
+
+        Returns:
+            EmbedderOpenAIOutputs with pip dependencies and spec.
+        """
+        return EmbedderOpenAIOutputs(
+            pip_dependencies=[],
+            spec=self._build_spec(),
+        )
 
     async def on_create(self) -> EmbedderOpenAIOutputs:
-        """Create returns serializable metadata only.
+        """Create returns serializable metadata with spec.
 
         Returns:
-            EmbedderOpenAIOutputs containing model and dimensions.
+            EmbedderOpenAIOutputs with pip dependencies and spec.
         """
-        return EmbedderOpenAIOutputs(
-            model=self.config.id,
-            dimensions=self._get_dimensions(),
-            pip_dependencies=[],
-            ready=True,
-        )
+        return self._build_outputs()
 
     async def on_update(self, previous_config: EmbedderOpenAIConfig) -> EmbedderOpenAIOutputs:  # noqa: ARG002
-        """Update returns serializable metadata.
+        """Update returns serializable metadata with spec.
+
+        Args:
+            previous_config: The previous configuration (unused for stateless resource).
 
         Returns:
-            EmbedderOpenAIOutputs containing model and dimensions.
+            EmbedderOpenAIOutputs with pip dependencies and spec.
         """
-        return EmbedderOpenAIOutputs(
-            model=self.config.id,
-            dimensions=self._get_dimensions(),
-            pip_dependencies=[],
-            ready=True,
-        )
+        return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete is a no-op since this resource is stateless."""
