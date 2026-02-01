@@ -9,13 +9,14 @@ from qdrant_client.http import models
 
 from qdrant_provider import Collection, CollectionConfig, CollectionOutputs, VectorConfig
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture, MockType
 
 
 async def test_create_collection_success(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_create creates collection and returns outputs."""
     config = CollectionConfig(
@@ -38,7 +39,7 @@ async def test_create_collection_success(
 
 async def test_create_collection_already_exists(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_create is idempotent when collection exists."""
     mock_qdrant_client.collection_exists.return_value = True
@@ -58,7 +59,7 @@ async def test_create_collection_already_exists(
 
 async def test_create_with_api_key(
     harness: ProviderHarness,
-    mocker: "MockerFixture",
+    mocker: MockerFixture,
 ) -> None:
     """on_create passes api_key to client."""
     mock_client = mocker.MagicMock()
@@ -97,7 +98,7 @@ async def test_create_with_api_key(
 
 async def test_create_with_on_disk(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_create passes on_disk parameter to collection config."""
     config = CollectionConfig(
@@ -116,7 +117,7 @@ async def test_create_with_on_disk(
 
 async def test_create_with_euclid_distance(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_create uses correct distance metric."""
     config = CollectionConfig(
@@ -135,7 +136,7 @@ async def test_create_with_euclid_distance(
 
 async def test_update_no_change(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_update returns info without recreation when config unchanged."""
     config = CollectionConfig(
@@ -165,7 +166,7 @@ async def test_update_no_change(
 
 async def test_update_recreates_on_vector_size_change(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_update recreates collection when vector size changes."""
     mock_qdrant_client.collection_exists.return_value = True
@@ -201,7 +202,7 @@ async def test_update_recreates_on_vector_size_change(
 
 async def test_update_recreates_on_distance_change(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_update recreates collection when distance metric changes."""
     mock_qdrant_client.collection_exists.return_value = True
@@ -238,7 +239,7 @@ async def test_update_recreates_on_distance_change(
 
 async def test_update_rejects_name_change(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_update raises error when collection name changes."""
     previous = CollectionConfig(
@@ -271,7 +272,7 @@ async def test_update_rejects_name_change(
 
 async def test_delete_success(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_delete removes the collection."""
     mock_qdrant_client.collection_exists.return_value = True
@@ -290,7 +291,7 @@ async def test_delete_success(
 
 async def test_delete_idempotent(
     harness: ProviderHarness,
-    mock_qdrant_client: "MockType",
+    mock_qdrant_client: MockType,
 ) -> None:
     """on_delete succeeds if collection doesn't exist."""
     mock_qdrant_client.collection_exists.return_value = False

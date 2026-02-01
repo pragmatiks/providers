@@ -11,6 +11,7 @@ from pragma_sdk import Dependency, LifecycleState
 from kubernetes_provider import Service, ServiceConfig, ServiceOutputs
 from kubernetes_provider.resources.service import PortConfig
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -46,9 +47,9 @@ def create_service_with_mocked_dependency(
 
 
 async def test_create_service_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_create applies service and returns outputs."""
     mock_service = mocker.Any()
@@ -71,9 +72,9 @@ async def test_create_service_success(
 
 
 async def test_create_headless_service(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_create handles headless service type."""
     mock_service = mocker.Any()
@@ -95,9 +96,9 @@ async def test_create_headless_service(
 
 
 async def test_update_service_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_update applies updated service."""
     mock_service = mocker.Any()
@@ -128,8 +129,8 @@ async def test_update_service_success(
 
 
 async def test_update_rejects_namespace_change(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_update rejects namespace changes."""
     svc = create_service_with_mocked_dependency(
@@ -151,8 +152,8 @@ async def test_update_rejects_namespace_change(
 
 
 async def test_delete_service_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_delete removes service."""
     svc = create_service_with_mocked_dependency(
@@ -166,9 +167,9 @@ async def test_delete_service_success(
 
 
 async def test_delete_service_idempotent(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_delete succeeds when service doesn't exist."""
     error = ApiError(response=mocker.Any())
@@ -194,9 +195,9 @@ def test_resource_type() -> None:
 
 
 async def test_health_with_endpoints(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns healthy when service has endpoints."""
     mock_svc = mocker.Any()
@@ -222,9 +223,9 @@ async def test_health_with_endpoints(
 
 
 async def test_health_no_endpoints(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns degraded when service has no endpoints."""
     mock_svc = mocker.Any()
@@ -247,9 +248,9 @@ async def test_health_no_endpoints(
 
 
 async def test_health_service_not_found(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns unhealthy when service not found."""
     error = ApiError(response=mocker.Any())
@@ -268,8 +269,8 @@ async def test_health_service_not_found(
 
 
 async def test_logs_returns_message(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """logs() yields info message about services not having logs."""
     svc = create_service_with_mocked_dependency(

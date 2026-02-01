@@ -10,6 +10,7 @@ from pragma_sdk import Dependency, LifecycleState
 
 from kubernetes_provider import ConfigMap, ConfigMapConfig, ConfigMapOutputs
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -41,8 +42,8 @@ def create_configmap_with_mocked_dependency(
 
 
 async def test_create_configmap_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_create applies configmap and returns outputs."""
     cm = create_configmap_with_mocked_dependency(
@@ -60,8 +61,8 @@ async def test_create_configmap_success(
 
 
 async def test_update_configmap_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_update applies updated configmap."""
     cm = create_configmap_with_mocked_dependency(
@@ -83,8 +84,8 @@ async def test_update_configmap_success(
 
 
 async def test_update_rejects_namespace_change(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_update rejects namespace changes."""
     cm = create_configmap_with_mocked_dependency(
@@ -104,8 +105,8 @@ async def test_update_rejects_namespace_change(
 
 
 async def test_delete_configmap_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_delete removes configmap."""
     cm = create_configmap_with_mocked_dependency(
@@ -119,9 +120,9 @@ async def test_delete_configmap_success(
 
 
 async def test_delete_configmap_idempotent(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_delete succeeds when configmap doesn't exist."""
     error = ApiError(response=mocker.Any())
@@ -147,9 +148,9 @@ def test_resource_type() -> None:
 
 
 async def test_health_exists(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns healthy when configmap exists."""
     mock_cm = mocker.Any()
@@ -168,9 +169,9 @@ async def test_health_exists(
 
 
 async def test_health_not_found(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns unhealthy when configmap not found."""
     error = ApiError(response=mocker.Any())
@@ -189,8 +190,8 @@ async def test_health_not_found(
 
 
 async def test_logs_returns_message(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """logs() yields info message about configmaps not having logs."""
     cm = create_configmap_with_mocked_dependency(

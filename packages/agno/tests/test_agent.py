@@ -13,6 +13,7 @@ from agno_provider import (
     AgentOutputs,
 )
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -130,7 +131,7 @@ async def test_create_agent_custom_image(
 async def test_create_agent_multiple_replicas(
     mock_gke_resource: Any,
     mock_model_resource: Any,
-    mocker: "MockerFixture",
+    mocker: MockerFixture,
 ) -> None:
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
@@ -159,7 +160,7 @@ async def test_create_agent_multiple_replicas(
 async def test_create_agent_waits_for_ready(
     mock_gke_resource: Any,
     mock_model_resource: Any,
-    mocker: "MockerFixture",
+    mocker: MockerFixture,
 ) -> None:
     call_count = 0
 
@@ -194,7 +195,7 @@ async def test_create_agent_waits_for_ready(
 async def test_create_agent_kubectl_failure(
     mock_gke_resource: Any,
     mock_model_resource: Any,
-    mocker: "MockerFixture",
+    mocker: MockerFixture,
 ) -> None:
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
@@ -254,7 +255,7 @@ async def test_update_unchanged_returns_existing(
 async def test_update_replicas_triggers_kubectl_apply(
     mock_gke_resource: Any,
     mock_model_resource: Any,
-    mocker: "MockerFixture",
+    mocker: MockerFixture,
 ) -> None:
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
@@ -312,7 +313,7 @@ async def test_update_rejects_cluster_change(
 async def test_update_model_change_triggers_apply(
     mock_gke_resource: Any,
     mock_model_resource: Any,
-    mocker: "MockerFixture",
+    mocker: MockerFixture,
 ) -> None:
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()
@@ -372,7 +373,7 @@ async def test_delete_success(
 async def test_delete_idempotent(
     mock_gke_resource: Any,
     mock_model_resource: Any,
-    mocker: "MockerFixture",
+    mocker: MockerFixture,
 ) -> None:
     def run_side_effect(cmd, **kwargs):
         result = mocker.MagicMock()

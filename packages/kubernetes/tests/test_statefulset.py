@@ -15,6 +15,7 @@ from kubernetes_provider.resources.statefulset import (
     VolumeMountConfig,
 )
 
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -50,9 +51,9 @@ def create_statefulset_with_mocked_dependency(
 
 
 async def test_create_statefulset_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_create applies statefulset and waits for ready."""
     mock_sts = mocker.Any()
@@ -76,9 +77,9 @@ async def test_create_statefulset_success(
 
 
 async def test_create_statefulset_with_pvc(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_create handles volume claim templates."""
     mock_sts = mocker.Any()
@@ -124,9 +125,9 @@ async def test_create_statefulset_with_pvc(
 
 
 async def test_create_statefulset_waits_for_ready(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_create polls until replicas are ready."""
     mock_sts_pending = mocker.Any()
@@ -158,9 +159,9 @@ async def test_create_statefulset_waits_for_ready(
 
 
 async def test_update_statefulset_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_update applies updated statefulset."""
     mock_sts = mocker.Any()
@@ -191,8 +192,8 @@ async def test_update_statefulset_success(
 
 
 async def test_update_rejects_service_name_change(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_update rejects service_name changes."""
     sts = create_statefulset_with_mocked_dependency(
@@ -214,8 +215,8 @@ async def test_update_rejects_service_name_change(
 
 
 async def test_delete_statefulset_success(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
 ) -> None:
     """on_delete removes statefulset."""
     sts = create_statefulset_with_mocked_dependency(
@@ -229,9 +230,9 @@ async def test_delete_statefulset_success(
 
 
 async def test_delete_statefulset_idempotent(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """on_delete succeeds when statefulset doesn't exist."""
     error = ApiError(response=mocker.Any())
@@ -257,9 +258,9 @@ def test_resource_type() -> None:
 
 
 async def test_health_all_replicas_ready(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns healthy when all replicas ready."""
     mock_sts = mocker.Any()
@@ -280,9 +281,9 @@ async def test_health_all_replicas_ready(
 
 
 async def test_health_partial_replicas(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns degraded when some replicas ready."""
     mock_sts = mocker.Any()
@@ -302,9 +303,9 @@ async def test_health_partial_replicas(
 
 
 async def test_health_no_replicas(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns unhealthy when no replicas ready."""
     mock_sts = mocker.Any()
@@ -324,9 +325,9 @@ async def test_health_no_replicas(
 
 
 async def test_health_not_found(
-    mock_lightkube_client: "Any",
-    mock_gke_cluster: "Any",
-    mocker: "MockerFixture",
+    mock_lightkube_client: Any,
+    mock_gke_cluster: Any,
+    mocker: MockerFixture,
 ) -> None:
     """health() returns unhealthy when statefulset not found."""
     error = ApiError(response=mocker.Any())
