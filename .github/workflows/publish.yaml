@@ -97,13 +97,12 @@ jobs:
 
       - name: Bump and build tier 1 providers
         id: bump
+        env:
+          CHANGED_GCP: ${{ needs.detect-changes.outputs.gcp }}
+          CHANGED_QDRANT: ${{ needs.detect-changes.outputs.qdrant }}
         run: |
-          for provider in gcp qdrant; do
-            CHANGED="${{ needs.detect-changes.outputs[provider] }}"
-            if [ "$CHANGED" != "true" ]; then
-              continue
-            fi
-
+          process_provider() {
+            local provider=$1
             echo "::group::Processing $provider"
             cd packages/$provider
 
@@ -111,7 +110,6 @@ jobs:
               VERSION=$(cz version --project)
               echo "Bumped $provider to v$VERSION"
               echo "${provider}_version=$VERSION" >> $GITHUB_OUTPUT
-
               uv build --package pragmatiks-${provider}-provider
             else
               if grep -qE "No commits found|is not a bump" bump_output.txt; then
@@ -124,24 +122,38 @@ jobs:
 
             cd ../..
             echo "::endgroup::"
-          done
+          }
+
+          if [ "$CHANGED_GCP" = "true" ]; then
+            process_provider gcp
+          fi
+
+          if [ "$CHANGED_QDRANT" = "true" ]; then
+            process_provider qdrant
+          fi
 
       - name: Push version bumps and tags
         run: git push origin main --follow-tags || echo "Nothing to push"
 
       - name: Create GitHub Releases
-        run: |
-          for provider in gcp qdrant; do
-            VERSION="${{ steps.bump.outputs[format('{0}_version', provider)] }}"
-            if [ -n "$VERSION" ]; then
-              gh release create "${provider}-v${VERSION}" \
-                --title "pragmatiks-${provider}-provider v${VERSION}" \
-                --generate-notes \
-                dist/pragmatiks_${provider}_provider-${VERSION}* || echo "Release may already exist"
-            fi
-          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GCP_VERSION: ${{ steps.bump.outputs.gcp_version }}
+          QDRANT_VERSION: ${{ steps.bump.outputs.qdrant_version }}
+        run: |
+          if [ -n "$GCP_VERSION" ]; then
+            gh release create "gcp-v${GCP_VERSION}" \
+              --title "pragmatiks-gcp-provider v${GCP_VERSION}" \
+              --generate-notes \
+              dist/pragmatiks_gcp_provider-${GCP_VERSION}* || echo "Release may already exist"
+          fi
+
+          if [ -n "$QDRANT_VERSION" ]; then
+            gh release create "qdrant-v${QDRANT_VERSION}" \
+              --title "pragmatiks-qdrant-provider v${QDRANT_VERSION}" \
+              --generate-notes \
+              dist/pragmatiks_qdrant_provider-${QDRANT_VERSION}* || echo "Release may already exist"
+          fi
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
