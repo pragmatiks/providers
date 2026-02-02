@@ -6,10 +6,11 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "pragmatiks-sdk>=0.6.0",
+    "pragmatiks-gcp-provider>=0.77.0",
+    "pragmatiks-kubernetes-provider>=0.100.0",
     "agno[anthropic,openai,postgres,qdrant]>=2.4.0",
     "sqlalchemy>=2.0.0",
     "mcp>=1.26.0",
-    "lightkube>=0.18.0",
 ]
 
 authors = [
