@@ -1,3 +1,15 @@
+## gcp-v0.78.0 (2026-02-02)
+
+### Feat
+
+- **agno**: rebuild agent, add team and deployment resources (#24)
+
+### Fix
+
+- **agno**: rewrite agent tests for current AgentConfig implementation
+- **gcp**: convert db_port to int in CloudSQL database outputs
+- **ci**: use PyPI API for availability check instead of pip index
+
 ## gcp-v0.77.0 (2026-01-29)
 
 ### Feat
