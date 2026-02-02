@@ -1,4 +1,4 @@
-"""Agno Deployment resource - deploys agents or teams to Kubernetes."""
+"""Agno Runner resource - deploys agents or teams to Kubernetes."""
 
 from __future__ import annotations
 
@@ -33,14 +33,14 @@ from agno_provider.resources.base import AgnoSpec
 from agno_provider.resources.team import Team, TeamOutputs, TeamSpec
 
 
-class DeploymentSpec(AgnoSpec):
-    """Specification for reconstructing a Deployment configuration.
+class RunnerSpec(AgnoSpec):
+    """Specification for reconstructing a Runner configuration.
 
-    Contains all deployment configuration including the nested agent or team spec.
+    Contains all runner configuration including the nested agent or team spec.
     Used for tracking what was deployed.
 
     Attributes:
-        name: Deployment name.
+        name: Runner name.
         namespace: Kubernetes namespace.
         agent_spec: Nested agent spec if deploying an agent.
         team_spec: Nested team spec if deploying a team.
@@ -60,7 +60,7 @@ class DeploymentSpec(AgnoSpec):
     memory: str
 
 
-class DeploymentConfig(Config):
+class RunnerConfig(Config):
     """Configuration for deploying an Agno agent or team to Kubernetes.
 
     Exactly one of agent or team must be provided.
@@ -69,7 +69,7 @@ class DeploymentConfig(Config):
         agent: Agent dependency to deploy.
         team: Team dependency to deploy.
         cluster: GKE cluster dependency providing Kubernetes credentials.
-        namespace: Kubernetes namespace for deployment.
+        namespace: Kubernetes namespace for runner.
         replicas: Number of pod replicas.
         image: Container image for running the agent/team.
         cpu: CPU resource limit.
@@ -83,13 +83,13 @@ class DeploymentConfig(Config):
 
     namespace: str = "default"
     replicas: int = 1
-    image: str = "ghcr.io/agno-ai/agno:latest"
+    image: str = "ghcr.io/pragmatiks/agno-runner:latest"
 
     cpu: str = "500m"
     memory: str = "1Gi"
 
     @model_validator(mode="after")
-    def validate_exactly_one_target(self) -> DeploymentConfig:
+    def validate_exactly_one_target(self) -> RunnerConfig:
         """Validate that exactly one of agent or team is provided.
 
         Returns:
@@ -112,22 +112,22 @@ class DeploymentConfig(Config):
         return self
 
 
-class DeploymentOutputs(Outputs):
-    """Outputs from Agno deployment creation.
+class RunnerOutputs(Outputs):
+    """Outputs from Agno runner creation.
 
     Attributes:
-        spec: Specification for the deployment.
+        spec: Specification for the runner.
         url: In-cluster service URL.
-        ready: Whether the deployment is ready.
+        ready: Whether the runner is ready.
     """
 
-    spec: DeploymentSpec
+    spec: RunnerSpec
     url: str
     ready: bool
 
 
-class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
-    """Agno agent/team deployment to Kubernetes.
+class Runner(Resource[RunnerConfig, RunnerOutputs]):
+    """Agno agent/team runner on Kubernetes.
 
     This is the ONLY agno resource that creates infrastructure. It deploys
     either an agent or a team as a Kubernetes Deployment + Service using
@@ -141,8 +141,8 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
 
     Example YAML:
         provider: agno
-        resource: deployment
-        name: my-agent-deployment
+        resource: runner
+        name: my-agent-runner
         config:
           agent:
             $ref: agno/agent/my-agent
@@ -158,9 +158,9 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
     """
 
     provider: ClassVar[str] = "agno"
-    resource: ClassVar[str] = "deployment"
+    resource: ClassVar[str] = "runner"
 
-    def _deployment_name(self) -> str:
+    def _runner_name(self) -> str:
         """Get Kubernetes deployment name based on resource name.
 
         Returns:
@@ -183,7 +183,7 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
             Label dict for selecting pods.
         """
         return {
-            "app": self._deployment_name(),
+            "app": self._runner_name(),
             "agno.ai/managed-by": "pragma",
         }
 
@@ -277,7 +277,7 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
         )
 
         return K8sDeployment(
-            name=self._deployment_name(),
+            name=self._runner_name(),
             config=config,
         )
 
@@ -329,7 +329,7 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
         )
 
         return K8sDeployment(
-            name=self._deployment_name(),
+            name=self._runner_name(),
             config=config,
         )
 
@@ -345,18 +345,18 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
         self,
         spec: AgentSpec | TeamSpec,
         ready: bool,
-    ) -> DeploymentOutputs:
-        """Build deployment outputs.
+    ) -> RunnerOutputs:
+        """Build runner outputs.
 
         Args:
             spec: The agent or team spec deployed.
-            ready: Whether deployment is ready.
+            ready: Whether runner is ready.
 
         Returns:
-            DeploymentOutputs with spec, url, and ready status.
+            RunnerOutputs with spec, url, and ready status.
         """
-        deployment_spec = DeploymentSpec(
-            name=self._deployment_name(),
+        runner_spec = RunnerSpec(
+            name=self._runner_name(),
             namespace=self.config.namespace,
             agent_spec=spec if isinstance(spec, AgentSpec) else None,
             team_spec=spec if isinstance(spec, TeamSpec) else None,
@@ -366,8 +366,8 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
             memory=self.config.memory,
         )
 
-        return DeploymentOutputs(
-            spec=deployment_spec,
+        return RunnerOutputs(
+            spec=runner_spec,
             url=self._build_service_url(),
             ready=ready,
         )
@@ -400,25 +400,25 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
         spec_type, spec = await self._get_spec_info()
         return self._build_k8s_deployment(spec_type, spec)
 
-    async def on_create(self) -> DeploymentOutputs:
+    async def on_create(self) -> RunnerOutputs:
         """Create Kubernetes Deployment + Service and wait for ready.
 
         Returns:
-            DeploymentOutputs with deployment details.
+            RunnerOutputs with runner details.
         """
         spec_type, spec = await self._get_spec_info()
         await self._apply_k8s_resources(spec_type, spec)
 
         return self._build_outputs(spec, ready=True)
 
-    async def on_update(self, previous_config: DeploymentConfig) -> DeploymentOutputs:
+    async def on_update(self, previous_config: RunnerConfig) -> RunnerOutputs:
         """Update Kubernetes Deployment + Service and wait for ready.
 
         Args:
             previous_config: The previous configuration before update.
 
         Returns:
-            DeploymentOutputs with updated deployment details.
+            RunnerOutputs with updated runner details.
 
         Raises:
             ValueError: If immutable fields changed.
@@ -449,7 +449,7 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
         await k8s_deployment.on_delete()
 
     async def health(self) -> HealthStatus:
-        """Check Deployment health by delegating to child kubernetes/deployment.
+        """Check Runner health by delegating to child kubernetes/deployment.
 
         Returns:
             HealthStatus indicating healthy/degraded/unhealthy.
@@ -462,7 +462,7 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
         since: datetime | None = None,
         tail: int = 100,
     ) -> AsyncIterator[LogEntry]:
-        """Fetch logs from pods managed by this Deployment.
+        """Fetch logs from pods managed by this Runner.
 
         Args:
             since: Only return logs after this timestamp.
