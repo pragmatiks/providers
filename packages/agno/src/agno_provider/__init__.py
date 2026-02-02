@@ -29,6 +29,9 @@ from agno_provider.resources import (
     Prompt,
     PromptConfig,
     PromptOutputs,
+    Runner,
+    RunnerConfig,
+    RunnerOutputs,
     ToolsMCP,
     ToolsMCPConfig,
     ToolsMCPOutputs,
@@ -45,6 +48,7 @@ agno = Provider(name="agno")
 
 agno.resource("agent")(Agent)
 agno.resource("db/postgres")(DbPostgres)
+agno.resource("runner")(Runner)
 agno.resource("knowledge/embedder/openai")(EmbedderOpenAI)
 agno.resource("memory/manager")(MemoryManager)
 agno.resource("models/anthropic")(AnthropicModel)
@@ -64,6 +68,9 @@ __all__ = [
     "DbPostgres",
     "DbPostgresConfig",
     "DbPostgresOutputs",
+    "Runner",
+    "RunnerConfig",
+    "RunnerOutputs",
     "EmbedderOpenAI",
     "EmbedderOpenAIConfig",
     "EmbedderOpenAIOutputs",
