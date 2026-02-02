@@ -31,8 +31,8 @@ from pydantic import BaseModel
 from kubernetes_provider.client import create_client_from_gke
 
 
-_POLL_INTERVAL_SECONDS = 5.0
-_DEFAULT_TIMEOUT_SECONDS = 300.0
+_POLL_INTERVAL_SECONDS = 5
+_MAX_POLL_ATTEMPTS = 60
 
 
 class HttpGetConfig(BaseModel):
@@ -383,16 +383,11 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
             available_replicas=available,
         )
 
-    async def _wait_for_ready(
-        self,
-        client,
-        timeout: float = _DEFAULT_TIMEOUT_SECONDS,
-    ) -> K8sDeployment:
+    async def _wait_for_ready(self, client) -> K8sDeployment:
         """Poll until Deployment has all replicas ready.
 
         Args:
             client: Lightkube async client.
-            timeout: Maximum seconds to wait for ready state.
 
         Returns:
             Deployment with ready replicas.
@@ -400,9 +395,7 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
         Raises:
             TimeoutError: If replicas don't become ready in time.
         """
-        max_attempts = int(timeout / _POLL_INTERVAL_SECONDS)
-
-        for _ in range(max_attempts):
+        for _ in range(_MAX_POLL_ATTEMPTS):
             deployment = await client.get(
                 K8sDeployment,
                 name=self.name,
@@ -419,7 +412,7 @@ class Deployment(Resource[DeploymentConfig, DeploymentOutputs]):
 
             await asyncio.sleep(_POLL_INTERVAL_SECONDS)
 
-        msg = f"Deployment {self.name} did not become ready within {timeout}s"
+        msg = f"Deployment {self.name} did not become ready within {_MAX_POLL_ATTEMPTS * _POLL_INTERVAL_SECONDS}s"
         raise TimeoutError(msg)
 
     async def on_create(self) -> DeploymentOutputs:

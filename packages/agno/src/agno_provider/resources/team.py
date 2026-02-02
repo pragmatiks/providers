@@ -1,12 +1,13 @@
-"""Agno Agent resource - pure definition for AI agent configuration."""
+"""Agno Team resource - pure definition for AI team configuration."""
 
 from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from agno.agent import Agent as AgnoAgent
+from agno.team import Team as AgnoTeam
 from pragma_sdk import Config, Dependency, Outputs
 
+from agno_provider.resources.agent import Agent, AgentOutputs, AgentSpec
 from agno_provider.resources.base import AgnoResource, AgnoSpec
 from agno_provider.resources.db.postgres import DbPostgres, DbPostgresSpec
 from agno_provider.resources.knowledge.knowledge import Knowledge, KnowledgeOutputs, KnowledgeSpec
@@ -27,24 +28,27 @@ from agno_provider.resources.tools.mcp import ToolsMCP, ToolsMCPOutputs, ToolsMC
 from agno_provider.resources.tools.websearch import ToolsWebSearch, ToolsWebSearchOutputs, ToolsWebSearchSpec
 
 
-class AgentSpec(AgnoSpec):
-    """Specification for reconstructing an Agno Agent at runtime.
+class TeamSpec(AgnoSpec):
+    """Specification for reconstructing an Agno Team at runtime.
 
-    Contains all necessary information to create an Agent instance
-    with all nested dependencies. Used for deployment to containers
-    where the agent needs to be reconstructed from serialized config.
+    Contains all necessary information to create a Team instance
+    with all member agents and dependencies. Used for deployment to containers
+    where the team needs to be reconstructed from serialized config.
 
     Attributes:
-        name: Agent name.
-        description: Optional description of the agent.
-        role: Optional role for the agent.
+        name: Team name.
+        description: Optional description of the team.
+        role: Optional role for the team.
         instructions: Optional list of instruction strings.
-        model_spec: Nested spec for the model (OpenAI or Anthropic).
-        tools_specs: List of nested tool specs (MCP or WebSearch).
+        member_specs: List of nested agent specs (team members).
+        model_spec: Optional nested spec for the leader model.
+        tools_specs: List of nested tool specs (MCP or WebSearch) for team-level tools.
         knowledge_spec: Optional nested spec for knowledge/RAG.
         memory_spec: Optional nested spec for memory management.
-        storage_spec: Optional nested spec for agent session storage.
+        storage_spec: Optional nested spec for team session storage.
         prompt_spec: Optional nested prompt spec for instructions template.
+        respond_directly: If True, don't process member responses.
+        delegate_to_all_members: Delegate to all members vs subset.
         markdown: Whether to use markdown formatting.
         add_datetime_to_context: Whether to add datetime to context.
     """
@@ -53,30 +57,40 @@ class AgentSpec(AgnoSpec):
     description: str | None = None
     role: str | None = None
     instructions: list[str] | None = None
-    model_spec: OpenAIModelSpec | AnthropicModelSpec
+
+    member_specs: list[AgentSpec]
+
+    model_spec: OpenAIModelSpec | AnthropicModelSpec | None = None
+
     tools_specs: list[ToolsMCPSpec | ToolsWebSearchSpec] = []
     knowledge_spec: KnowledgeSpec | None = None
     memory_spec: MemoryManagerSpec | None = None
     storage_spec: DbPostgresSpec | None = None
     prompt_spec: PromptSpec | None = None
+
+    respond_directly: bool = False
+    delegate_to_all_members: bool = False
     markdown: bool = False
     add_datetime_to_context: bool = False
 
 
-class AgentConfig(Config):
-    """Configuration for an Agno agent definition.
+class TeamConfig(Config):
+    """Configuration for an Agno team definition.
 
     Attributes:
-        name: Optional agent name (defaults to resource name).
-        description: Optional description of the agent.
-        role: Optional role for the agent.
-        model: Model dependency (anthropic or openai) for agent LLM.
-        instructions: Optional inline instructions for the agent.
+        name: Optional team name (defaults to resource name).
+        description: Optional description of the team.
+        role: Optional role for the team.
+        members: List of agent dependencies (required).
+        model: Optional leader model dependency (anthropic or openai).
+        instructions: Optional inline instructions for the team.
         prompt: Optional Prompt dependency for instructions template.
-        tools: Optional list of tool dependencies (MCP or WebSearch).
+        tools: Optional list of tool dependencies (MCP or WebSearch) for team-level tools.
         knowledge: Optional Knowledge dependency for RAG.
         storage: Optional storage dependency (postgres) for session persistence.
-        memory: Optional MemoryManager dependency for agent memory.
+        memory: Optional MemoryManager dependency for team memory.
+        respond_directly: If True, don't process member responses.
+        delegate_to_all_members: Delegate to all members vs subset.
         markdown: Whether to use markdown formatting in responses.
         add_datetime_to_context: Whether to add current datetime to context.
     """
@@ -85,7 +99,9 @@ class AgentConfig(Config):
     description: str | None = None
     role: str | None = None
 
-    model: Dependency[AnthropicModel] | Dependency[OpenAIModel]
+    members: list[Dependency[Agent]]
+
+    model: Dependency[AnthropicModel] | Dependency[OpenAIModel] | None = None
 
     instructions: list[str] | None = None
     prompt: Dependency[Prompt] | None = None
@@ -98,47 +114,51 @@ class AgentConfig(Config):
 
     memory: Dependency[MemoryManager] | None = None
 
+    respond_directly: bool = False
+    delegate_to_all_members: bool = False
     markdown: bool = False
     add_datetime_to_context: bool = False
 
 
-class AgentOutputs(Outputs):
-    """Outputs from Agno agent definition.
+class TeamOutputs(Outputs):
+    """Outputs from Agno team definition.
 
     Attributes:
-        spec: Specification for reconstructing the agent at runtime.
-        pip_dependencies: Python packages required by this agent.
+        spec: Specification for reconstructing the team at runtime.
+        member_count: Number of member agents in the team.
+        pip_dependencies: Python packages required by this team and its members.
     """
 
-    spec: AgentSpec
+    spec: TeamSpec
+    member_count: int
     pip_dependencies: list[str]
 
 
-class Agent(AgnoResource[AgentConfig, AgentOutputs, AgentSpec]):
-    """Agno AI agent definition resource.
+class Team(AgnoResource[TeamConfig, TeamOutputs, TeamSpec]):
+    """Agno AI team definition resource.
 
-    A pure configuration wrapper that produces a serializable AgentSpec.
+    A pure configuration wrapper that produces a serializable TeamSpec.
     No deployment logic - the spec is used by other resources (e.g., deployment)
-    to reconstruct the agent at runtime.
+    to reconstruct the team at runtime.
 
-    The outputs include an AgentSpec that can be used to reconstruct
-    the complete agent via Agent.from_spec().
+    The outputs include a TeamSpec that can be used to reconstruct
+    the complete team via Team.from_spec().
 
     Example YAML:
         provider: agno
-        resource: agent
-        name: my-agent
+        resource: team
+        name: my-team
         config:
+          members:
+            - $ref: agno/agent/researcher
+            - $ref: agno/agent/writer
           model:
             $ref: agno/models/anthropic/claude
-          instructions:
-            - "You are a helpful assistant."
-          tools:
-            - $ref: agno/tools/mcp/search
+          delegate_to_all_members: true
           markdown: true
 
     Runtime reconstruction via spec:
-        agent = Agent.from_spec(spec)
+        team = Team.from_spec(spec)
 
     Lifecycle:
         - on_create: Resolve dependencies, return outputs with spec
@@ -147,22 +167,27 @@ class Agent(AgnoResource[AgentConfig, AgentOutputs, AgentSpec]):
     """
 
     provider: ClassVar[str] = "agno"
-    resource: ClassVar[str] = "agent"
+    resource: ClassVar[str] = "team"
 
     @staticmethod
-    def from_spec(spec: AgentSpec) -> AgnoAgent:
-        """Factory: construct Agno Agent from spec.
+    def from_spec(spec: TeamSpec) -> AgnoTeam:
+        """Factory: construct Agno Team from spec.
 
         Builds all nested dependencies from their specs and constructs
-        the Agent with all configured components.
+        the Team with all configured components. Member agents are
+        reconstructed first, then the team is built with those members.
 
         Args:
-            spec: The agent specification.
+            spec: The team specification.
 
         Returns:
-            Configured Agno Agent instance.
+            Configured Agno Team instance.
         """
-        model = model_from_spec(spec.model_spec)
+        members = [Agent.from_spec(member_spec) for member_spec in spec.member_specs]
+
+        model = None
+        if spec.model_spec:
+            model = model_from_spec(spec.model_spec)
 
         knowledge = None
         if spec.knowledge_spec:
@@ -187,48 +212,63 @@ class Agent(AgnoResource[AgentConfig, AgentOutputs, AgentSpec]):
         if spec.prompt_spec:
             instructions = Prompt.from_spec(spec.prompt_spec)
 
-        return AgnoAgent(
+        return AgnoTeam(
             name=spec.name,
             description=spec.description,
             role=spec.role,
+            members=members,
             model=model,
             knowledge=knowledge,
             memory_manager=memory_manager,
             db=storage,
             tools=tools if tools else None,
             instructions=instructions,
+            respond_directly=spec.respond_directly,
+            delegate_to_all_members=spec.delegate_to_all_members,
             markdown=spec.markdown,
             add_datetime_to_context=spec.add_datetime_to_context,
         )
 
-    async def _build_spec(self) -> AgentSpec:
+    async def _build_spec(self) -> TeamSpec:
         """Build spec from resolved dependencies.
 
         Creates a specification that can be serialized and used to
-        reconstruct the agent at runtime. Extracts nested specs from
+        reconstruct the team at runtime. Extracts nested specs from
         all resolved dependency outputs.
 
         Returns:
-            AgentSpec with all nested specs from dependencies.
+            TeamSpec with all nested specs from dependencies.
 
         Raises:
-            RuntimeError: If model dependency is not resolved or has no spec.
+            RuntimeError: If a member or model dependency is not resolved or has no spec.
         """
-        model = await self.config.model.resolve()
-        model_outputs = model.outputs
+        member_specs: list[AgentSpec] = []
+        for member_dep in self.config.members:
+            member = await member_dep.resolve()
 
-        if model_outputs is None:
-            msg = "Model dependency not resolved"
-            raise RuntimeError(msg)
+            if member.outputs is None:
+                msg = f"Member agent dependency not resolved: {member.name}"
+                raise RuntimeError(msg)
 
-        model_spec: OpenAIModelSpec | AnthropicModelSpec
-        if isinstance(model_outputs, OpenAIModelOutputs):
-            model_spec = model_outputs.spec
-        elif isinstance(model_outputs, AnthropicModelOutputs):
-            model_spec = model_outputs.spec
-        else:
-            msg = f"Unsupported model outputs type: {type(model_outputs)}"
-            raise RuntimeError(msg)
+            assert isinstance(member.outputs, AgentOutputs)
+            member_specs.append(member.outputs.spec)
+
+        model_spec: OpenAIModelSpec | AnthropicModelSpec | None = None
+        if self.config.model is not None:
+            model = await self.config.model.resolve()
+            model_outputs = model.outputs
+
+            if model_outputs is None:
+                msg = "Model dependency not resolved"
+                raise RuntimeError(msg)
+
+            if isinstance(model_outputs, OpenAIModelOutputs):
+                model_spec = model_outputs.spec
+            elif isinstance(model_outputs, AnthropicModelOutputs):
+                model_spec = model_outputs.spec
+            else:
+                msg = f"Unsupported model outputs type: {type(model_outputs)}"
+                raise RuntimeError(msg)
 
         knowledge_spec: KnowledgeSpec | None = None
         if self.config.knowledge is not None:
@@ -263,30 +303,39 @@ class Agent(AgnoResource[AgentConfig, AgentOutputs, AgentSpec]):
             if prompt.outputs is not None:
                 prompt_spec = prompt.outputs.spec
 
-        agent_name = self.config.name if self.config.name else self.name
+        team_name = self.config.name if self.config.name else self.name
 
-        return AgentSpec(
-            name=agent_name,
+        return TeamSpec(
+            name=team_name,
             description=self.config.description,
             role=self.config.role,
             instructions=self.config.instructions,
+            member_specs=member_specs,
             model_spec=model_spec,
             tools_specs=tools_specs,
             knowledge_spec=knowledge_spec,
             memory_spec=memory_spec,
             storage_spec=storage_spec,
             prompt_spec=prompt_spec,
+            respond_directly=self.config.respond_directly,
+            delegate_to_all_members=self.config.delegate_to_all_members,
             markdown=self.config.markdown,
             add_datetime_to_context=self.config.add_datetime_to_context,
         )
 
     def _get_pip_dependencies(self) -> list[str]:
-        """Aggregate pip dependencies from all tool and knowledge dependencies.
+        """Aggregate pip dependencies from all members and team dependencies.
 
         Returns:
             Deduplicated list of pip packages required.
         """
         deps: set[str] = set()
+
+        for member_dep in self.config.members:
+            member = member_dep._resolved
+            if member is not None and member.outputs is not None:
+                assert isinstance(member.outputs, AgentOutputs)
+                deps.update(member.outputs.pip_dependencies)
 
         for tool_dep in self.config.tools:
             tool = tool_dep._resolved
@@ -302,37 +351,38 @@ class Agent(AgnoResource[AgentConfig, AgentOutputs, AgentSpec]):
 
         return sorted(deps)
 
-    async def _build_outputs(self) -> AgentOutputs:
+    async def _build_outputs(self) -> TeamOutputs:
         """Build outputs with spec and pip dependencies.
 
         Returns:
-            AgentOutputs with the spec and pip_dependencies.
+            TeamOutputs with the spec, member_count, and pip_dependencies.
         """
         spec = await self._build_spec()
 
-        return AgentOutputs(
+        return TeamOutputs(
             spec=spec,
+            member_count=len(spec.member_specs),
             pip_dependencies=self._get_pip_dependencies(),
         )
 
-    async def on_create(self) -> AgentOutputs:
-        """Create agent definition and return serializable outputs.
+    async def on_create(self) -> TeamOutputs:
+        """Create team definition and return serializable outputs.
 
         Idempotent: Simply resolves dependencies and builds the spec.
 
         Returns:
-            AgentOutputs with spec and pip_dependencies.
+            TeamOutputs with spec, member_count, and pip_dependencies.
         """
         return await self._build_outputs()
 
-    async def on_update(self, previous_config: AgentConfig) -> AgentOutputs:  # noqa: ARG002
-        """Update agent definition and return serializable outputs.
+    async def on_update(self, previous_config: TeamConfig) -> TeamOutputs:  # noqa: ARG002
+        """Update team definition and return serializable outputs.
 
         Args:
             previous_config: The previous configuration (unused for stateless resource).
 
         Returns:
-            AgentOutputs with updated spec and pip_dependencies.
+            TeamOutputs with updated spec, member_count, and pip_dependencies.
         """
         return await self._build_outputs()
 

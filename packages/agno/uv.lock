@@ -641,6 +641,29 @@ wheels = [
 ]
 
 [[package]]
+name = "lightkube"
+version = "0.19.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx", extra = ["http2"] },
+    { name = "lightkube-models" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7a/44/fbac9db896899b687b078cdd053462d56df05de0e27523b45dafd495fcf5/lightkube-0.19.1.tar.gz", hash = "sha256:4c8526068024c194c02fbc0ca6021922feb4b1b9d741d330129f873b27e0fe97", size = 29790, upload-time = "2026-01-08T14:15:53.937Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/ef/7faeb245e50e79452bc1f52b90931e7f6ccbcc19c884721f352c7abb4321/lightkube-0.19.1-py3-none-any.whl", hash = "sha256:49fef08a1c7aa42082820111ffd5dbbaf78f54c99385810690fc9d94eef5c80d", size = 42396, upload-time = "2026-01-08T14:15:56.043Z" },
+]
+
+[[package]]
+name = "lightkube-models"
+version = "1.35.0.8"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/03/36ecf94356f5dc40c76d9f9732eba3e33e8b873d9e6a874f25ad0504be21/lightkube_models-1.35.0.8.tar.gz", hash = "sha256:dbc624596a7d94e6c43c5deda972be964202e0e8f26e2ab8e61d589d710b5e22", size = 244553, upload-time = "2025-12-25T22:30:58.526Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a1/1d/8f77a83dcfedac74248af3b65390b2f5bca65ca8131ee18a1895cd10d4a7/lightkube_models-1.35.0.8-py3-none-any.whl", hash = "sha256:d01fce42f96baf47a77a571bff59d6a513e96ae043fc03cfaaaaf79c609c4441", size = 305779, upload-time = "2025-12-25T22:30:57.192Z" },
+]
+
+[[package]]
 name = "lxml"
 version = "6.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -853,6 +876,7 @@ version = "0.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "agno", extra = ["anthropic", "openai", "postgres", "qdrant"] },
+    { name = "lightkube" },
     { name = "mcp" },
     { name = "pragmatiks-sdk" },
     { name = "sqlalchemy" },
@@ -872,6 +896,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "agno", extras = ["anthropic", "openai", "postgres", "qdrant"], specifier = ">=2.4.0" },
+    { name = "lightkube", specifier = ">=0.18.0" },
     { name = "mcp", specifier = ">=1.26.0" },
     { name = "pragmatiks-sdk", specifier = ">=0.6.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },

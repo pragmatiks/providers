@@ -10,6 +10,11 @@ from agno_provider.resources.db import (
     DbPostgresConfig,
     DbPostgresOutputs,
 )
+from agno_provider.resources.deployment import (
+    Deployment,
+    DeploymentConfig,
+    DeploymentOutputs,
+)
 from agno_provider.resources.knowledge import (
     Content,
     ContentConfig,
@@ -40,6 +45,11 @@ from agno_provider.resources.prompt import (
     PromptConfig,
     PromptOutputs,
 )
+from agno_provider.resources.team import (
+    Team,
+    TeamConfig,
+    TeamOutputs,
+)
 from agno_provider.resources.tools import (
     ToolsMCP,
     ToolsMCPConfig,
@@ -60,6 +70,9 @@ __all__ = [
     "AgentConfig",
     "AgentOutputs",
     "AnthropicModel",
+    "Deployment",
+    "DeploymentConfig",
+    "DeploymentOutputs",
     "AnthropicModelConfig",
     "Content",
     "ContentConfig",
@@ -84,6 +97,9 @@ __all__ = [
     "Prompt",
     "PromptConfig",
     "PromptOutputs",
+    "Team",
+    "TeamConfig",
+    "TeamOutputs",
     "ToolsMCP",
     "ToolsMCPConfig",
     "ToolsMCPOutputs",

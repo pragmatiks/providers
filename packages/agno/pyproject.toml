@@ -9,6 +9,7 @@ dependencies = [
     "agno[anthropic,openai,postgres,qdrant]>=2.4.0",
     "sqlalchemy>=2.0.0",
     "mcp>=1.26.0",
+    "lightkube>=0.18.0",
 ]
 
 authors = [
