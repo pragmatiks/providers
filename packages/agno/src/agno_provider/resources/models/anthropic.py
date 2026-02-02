@@ -7,7 +7,33 @@ from typing import ClassVar
 from agno.models.anthropic import Claude
 from pragma_sdk import Field
 
-from agno_provider.resources.models.base import Model, ModelConfig
+from agno_provider.resources.base import AgnoSpec
+from agno_provider.resources.models.base import Model, ModelConfig, ModelOutputs
+
+
+class AnthropicModelSpec(AgnoSpec):
+    """Specification for an Anthropic Claude model.
+
+    Used for serializing model configuration to outputs.
+    Use AnthropicModel.from_spec() to reconstruct the Claude instance at runtime.
+
+    Attributes:
+        id: Model identifier (e.g., "claude-sonnet-4-20250514").
+        api_key: Anthropic API key.
+        max_tokens: Maximum tokens in responses.
+        temperature: Sampling temperature (0.0-1.0).
+        top_p: Nucleus sampling parameter.
+        top_k: Top-k sampling parameter.
+        stop_sequences: Stop sequences to end generation.
+    """
+
+    id: str
+    api_key: str
+    max_tokens: int | None = None
+    temperature: float | None = None
+    top_p: float | None = None
+    top_k: int | None = None
+    stop_sequences: list[str] | None = None
 
 
 class AnthropicModelConfig(ModelConfig):
@@ -32,34 +58,92 @@ class AnthropicModelConfig(ModelConfig):
     stop_sequences: list[str] | None = None
 
 
-class AnthropicModel(Model[AnthropicModelConfig, Claude]):
+class AnthropicModelOutputs(ModelOutputs):
+    """Outputs from Anthropic model resource.
+
+    Attributes:
+        spec: The model specification for runtime reconstruction.
+    """
+
+    spec: AnthropicModelSpec
+
+
+class AnthropicModel(Model[AnthropicModelConfig, AnthropicModelOutputs, AnthropicModelSpec, Claude]):
     """Agno Anthropic Claude model resource.
 
     Creates and returns an Agno Claude instance configured with the provided
-    parameters. Dependent resources (like agno/agent) receive the resource
-    instance and call the model() method to get the actual Claude object.
+    parameters. The Claude instance is created via from_spec() at runtime.
 
-    This is a thin wrapper - the Claude instance is created on-demand
-    via the model() method. No API validation is performed since the
-    Agno SDK handles authentication when the model is actually used.
+    This is a thin wrapper - the Claude instance is created on-demand.
+    No API validation is performed since the Agno SDK handles authentication
+    when the model is actually used.
 
-    Usage by dependent resources:
-        model_resource: Dependency[AnthropicModel]
-
-        async def on_create(self):
-            claude = self.model_resource.model()  # Get Claude instance
-            agent = AgnoAgent(model=claude, ...)
+    Runtime reconstruction from spec:
+        ```python
+        spec = outputs.spec
+        model = AnthropicModel.from_spec(spec)
+        ```
     """
 
     resource: ClassVar[str] = "models/anthropic"
 
-    def model(self) -> Claude:
-        """Return the configured Claude instance.
+    @staticmethod
+    def from_spec(spec: AnthropicModelSpec) -> Claude:
+        """Factory: construct Agno Claude object from spec.
 
-        Called by dependent resources (e.g., agno/agent) that need
-        the actual SDK object to pass to their constructors.
+        Args:
+            spec: The model specification.
 
         Returns:
-            Configured Claude instance ready for use with Agno agents.
+            Configured Claude instance ready for use.
         """
-        return Claude(**self.config.model_dump(exclude_none=True))
+        return Claude(**spec.model_dump(exclude_none=True))
+
+    def _build_spec(self) -> AnthropicModelSpec:
+        """Build spec from current config.
+
+        Creates a specification that can be serialized and used to
+        reconstruct the model at runtime.
+
+        Returns:
+            AnthropicModelSpec with all configuration fields.
+        """
+        return AnthropicModelSpec(
+            id=self.config.id,
+            api_key=str(self.config.api_key),
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            top_p=self.config.top_p,
+            top_k=self.config.top_k,
+            stop_sequences=self.config.stop_sequences,
+        )
+
+    def _build_outputs(self) -> AnthropicModelOutputs:
+        """Build outputs from current config.
+
+        Returns:
+            AnthropicModelOutputs with spec.
+        """
+        return AnthropicModelOutputs(spec=self._build_spec())
+
+    async def on_create(self) -> AnthropicModelOutputs:
+        """Create returns serializable outputs with spec.
+
+        Returns:
+            AnthropicModelOutputs with spec.
+        """
+        return self._build_outputs()
+
+    async def on_update(self, previous_config: AnthropicModelConfig) -> AnthropicModelOutputs:  # noqa: ARG002
+        """Update returns serializable outputs with spec.
+
+        Args:
+            previous_config: The previous configuration (unused for stateless resource).
+
+        Returns:
+            AnthropicModelOutputs with spec.
+        """
+        return self._build_outputs()
+
+    async def on_delete(self) -> None:
+        """Delete is a no-op since this resource is stateless."""

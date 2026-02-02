@@ -5,10 +5,39 @@ from __future__ import annotations
 from typing import ClassVar, Literal
 
 from agno.tools.websearch import WebSearchTools
-from pragma_sdk import Config, Outputs, Resource
+from pragma_sdk import Config, Outputs
+
+from agno_provider.resources.base import AgnoResource, AgnoSpec
 
 
 BackendType = Literal["auto", "duckduckgo", "google", "bing", "brave", "yandex", "yahoo"]
+
+
+class ToolsWebSearchSpec(AgnoSpec):
+    """Specification for reconstructing WebSearchTools at runtime.
+
+    Contains all configuration needed to create a WebSearchTools instance.
+    Used by dependent resources (e.g., agno/agent) to reconstruct the toolkit.
+
+    Attributes:
+        enable_search: Enable web search functionality.
+        enable_news: Enable news search functionality.
+        backend: Search backend (auto, duckduckgo, google, bing, brave, yandex, yahoo).
+        modifier: Text prepended to all queries (e.g., "site:example.com").
+        fixed_max_results: Override default max results limit.
+        proxy: Proxy URL for requests.
+        timeout: Request timeout in seconds.
+        verify_ssl: Whether to verify SSL certificates.
+    """
+
+    enable_search: bool = True
+    enable_news: bool = False
+    backend: BackendType = "auto"
+    modifier: str | None = None
+    fixed_max_results: int | None = None
+    proxy: str | None = None
+    timeout: int = 10
+    verify_ssl: bool = True
 
 
 class ToolsWebSearchConfig(Config):
@@ -39,15 +68,15 @@ class ToolsWebSearchOutputs(Outputs):
     """Outputs from tools/websearch resource.
 
     Attributes:
-        tools: List of tool names provided by this toolkit.
         pip_dependencies: Python packages required by this toolkit.
+        spec: Specification for reconstructing the toolkit at runtime.
     """
 
-    tools: list[str]
     pip_dependencies: list[str]
+    spec: ToolsWebSearchSpec
 
 
-class ToolsWebSearch(Resource[ToolsWebSearchConfig, ToolsWebSearchOutputs]):
+class ToolsWebSearch(AgnoResource[ToolsWebSearchConfig, ToolsWebSearchOutputs, ToolsWebSearchSpec]):
     """Web search toolkit resource wrapping Agno's WebSearchTools.
 
     Stateless resource that wraps WebSearchTools configuration. Dependent
@@ -63,31 +92,47 @@ class ToolsWebSearch(Resource[ToolsWebSearchConfig, ToolsWebSearchOutputs]):
     provider: ClassVar[str] = "agno"
     resource: ClassVar[str] = "tools/websearch"
 
-    def _enabled_tools(self) -> list[str]:
-        """Get list of enabled tool names based on config.
+    @staticmethod
+    def from_spec(spec: ToolsWebSearchSpec) -> WebSearchTools:
+        """Factory: construct WebSearchTools from spec.
+
+        Args:
+            spec: The toolkit specification.
 
         Returns:
-            List of tool names that are enabled.
+            Configured WebSearchTools instance.
         """
-        tools = []
+        return WebSearchTools(**spec.model_dump(exclude_none=True))
 
-        if self.config.enable_search:
-            tools.append("web_search")
+    def _build_spec(self) -> ToolsWebSearchSpec:
+        """Build spec from current config.
 
-        if self.config.enable_news:
-            tools.append("search_news")
+        Creates a specification that can be serialized and used to
+        reconstruct the toolkit at runtime.
 
-        return tools
+        Returns:
+            ToolsWebSearchSpec with all configuration fields.
+        """
+        return ToolsWebSearchSpec(
+            enable_search=self.config.enable_search,
+            enable_news=self.config.enable_news,
+            backend=self.config.backend,
+            modifier=self.config.modifier,
+            fixed_max_results=self.config.fixed_max_results,
+            proxy=self.config.proxy,
+            timeout=self.config.timeout,
+            verify_ssl=self.config.verify_ssl,
+        )
 
     def _build_outputs(self) -> ToolsWebSearchOutputs:
         """Build outputs from current config.
 
         Returns:
-            ToolsWebSearchOutputs with tool names and dependencies.
+            ToolsWebSearchOutputs with pip dependencies and spec.
         """
         return ToolsWebSearchOutputs(
-            tools=self._enabled_tools(),
             pip_dependencies=["ddgs>=8.0.0"],
+            spec=self._build_spec(),
         )
 
     def toolkit(self) -> WebSearchTools:

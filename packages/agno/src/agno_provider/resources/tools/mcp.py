@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
-from urllib.parse import urlparse
 
 from agno.tools.mcp import MCPTools
-from pragma_sdk import Config, Field, Outputs, Resource
+from pragma_sdk import Config, Field, Outputs
 from pydantic import model_validator
+
+from agno_provider.resources.base import AgnoResource, AgnoSpec
 
 
 if TYPE_CHECKING:
@@ -17,6 +18,26 @@ if TYPE_CHECKING:
 
 
 TransportType = Literal["stdio", "sse", "streamable-http"]
+
+
+class ToolsMCPSpec(AgnoSpec):
+    """Specification for reconstructing MCPTools at runtime.
+
+    Contains all configuration needed to create an MCPTools instance.
+
+    Attributes:
+        url: URL for SSE or streamable-http transport.
+        command: Command to run the MCP server (for stdio transport).
+        args: Arguments to pass to the command.
+        env: Environment variables.
+        transport: Transport type (stdio, sse, streamable-http).
+    """
+
+    url: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict[str, str] | None = None
+    transport: Literal["sse", "stdio", "streamable-http"]
 
 
 class ToolsMCPConfig(Config):
@@ -83,17 +104,13 @@ class ToolsMCPOutputs(Outputs):
     """Outputs from tools/mcp resource.
 
     Attributes:
-        name: Server identifier derived from command or URL.
-        tools: List of tool names provided by this MCP server.
-        ready: Whether the server connection was validated.
+        spec: Specification for reconstructing MCPTools at runtime.
     """
 
-    name: str
-    tools: list[str]
-    ready: bool
+    spec: ToolsMCPSpec
 
 
-class ToolsMCP(Resource[ToolsMCPConfig, ToolsMCPOutputs]):
+class ToolsMCP(AgnoResource[ToolsMCPConfig, ToolsMCPOutputs, ToolsMCPSpec]):
     """MCP server integration resource wrapping Agno's MCPTools.
 
     Provides Model Context Protocol server integration. Supports stdio
@@ -108,25 +125,56 @@ class ToolsMCP(Resource[ToolsMCPConfig, ToolsMCPOutputs]):
     provider: ClassVar[str] = "agno"
     resource: ClassVar[str] = "tools/mcp"
 
-    def _server_name(self) -> str:
-        """Derive server name from command or URL.
+    @staticmethod
+    def from_spec(spec: ToolsMCPSpec) -> MCPTools:
+        """Factory: construct MCPTools from spec.
+
+        Args:
+            spec: The MCP tools specification.
 
         Returns:
-            Human-readable server identifier.
+            Configured MCPTools instance (not yet connected).
         """
-        if self.config.command:
-            parts = self.config.command.split()
-            for part in reversed(parts):
-                if part.startswith("@") or part.startswith("mcp-server"):
-                    return part.split("/")[-1]
+        return MCPTools(**spec.model_dump(exclude_none=True))
 
-            return parts[-1] if parts else "mcp-server"
+    def _build_spec(self) -> ToolsMCPSpec:
+        """Build spec from current config.
 
-        if self.config.url:
-            parsed = urlparse(self.config.url)
-            return parsed.netloc or parsed.path.split("/")[-1] or "mcp-server"
+        Creates a specification that can be serialized and used to
+        reconstruct the MCPTools at runtime.
 
-        return "mcp-server"
+        Returns:
+            ToolsMCPSpec with configuration.
+        """
+        env: dict[str, str] | None = None
+
+        if self.config.env:
+            env = {key: str(value) for key, value in self.config.env.items()}
+
+        args: list[str] | None = None
+        command = self.config.command
+
+        if command:
+            parts = command.split()
+            if len(parts) > 1:
+                command = parts[0]
+                args = parts[1:]
+
+        return ToolsMCPSpec(
+            url=self.config.url,
+            command=command,
+            args=args,
+            env=env,
+            transport=self._infer_transport(),
+        )
+
+    def _build_outputs(self) -> ToolsMCPOutputs:
+        """Build outputs from current config.
+
+        Returns:
+            ToolsMCPOutputs with spec.
+        """
+        return ToolsMCPOutputs(spec=self._build_spec())
 
     def _resolve_env(self) -> dict[str, str] | None:
         """Resolve environment variables to strings.
@@ -235,42 +283,19 @@ class ToolsMCP(Resource[ToolsMCPConfig, ToolsMCPOutputs]):
 
         return MCPTools(**kwargs)
 
-    async def _discover_tools(self) -> list[str]:
-        """Connect to MCP server and discover available tools.
+    def _infer_transport(self) -> Literal["sse", "stdio", "streamable-http"]:
+        """Infer transport type from config.
 
         Returns:
-            List of tool names from the server.
+            The transport type, either explicit or inferred from config.
         """
-        mcp_tools = self._build_mcp_tools()
+        if self.config.transport:
+            return self.config.transport
 
-        try:
-            await mcp_tools.connect()
-            functions = mcp_tools.get_functions()
-            return list(functions.keys())
+        if self.config.command:
+            return "stdio"
 
-        finally:
-            await mcp_tools.close()
-
-    async def _build_outputs(self) -> ToolsMCPOutputs:
-        """Build outputs by connecting and discovering tools.
-
-        Returns:
-            ToolsMCPOutputs with server name, tools, and ready status.
-        """
-        try:
-            tools = await self._discover_tools()
-            return ToolsMCPOutputs(
-                name=self._server_name(),
-                tools=tools,
-                ready=True,
-            )
-
-        except Exception:
-            return ToolsMCPOutputs(
-                name=self._server_name(),
-                tools=[],
-                ready=False,
-            )
+        return "sse"
 
     def toolkit(self) -> MCPTools:
         """Returns a new MCPTools instance for use by agents.
@@ -284,23 +309,23 @@ class ToolsMCP(Resource[ToolsMCPConfig, ToolsMCPOutputs]):
         return self._build_mcp_tools()
 
     async def on_create(self) -> ToolsMCPOutputs:
-        """Create resource by validating MCP server connection.
+        """Create resource and return serializable outputs.
 
         Returns:
-            ToolsMCPOutputs with discovered tools and connection status.
+            ToolsMCPOutputs with spec.
         """
-        return await self._build_outputs()
+        return self._build_outputs()
 
     async def on_update(self, previous_config: ToolsMCPConfig) -> ToolsMCPOutputs:  # noqa: ARG002
-        """Update resource and refresh tool discovery.
+        """Update resource and return serializable outputs.
 
         Args:
             previous_config: The previous configuration (unused for stateless resource).
 
         Returns:
-            ToolsMCPOutputs with updated tools and connection status.
+            ToolsMCPOutputs with spec.
         """
-        return await self._build_outputs()
+        return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete is a no-op since this resource is stateless."""

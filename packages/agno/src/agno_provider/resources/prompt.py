@@ -5,8 +5,24 @@ from __future__ import annotations
 import re
 from typing import ClassVar
 
-from pragma_sdk import Config, Outputs, Resource
+from pragma_sdk import Config, Outputs
 from pydantic import model_validator
+
+from agno_provider.resources.base import AgnoResource, AgnoSpec
+
+
+class PromptSpec(AgnoSpec):
+    """Specification for a rendered prompt.
+
+    Attributes:
+        instructions: The list of instruction lines.
+        variables: Template variables used for interpolation.
+        rendered: The final rendered instructions string.
+    """
+
+    instructions: list[str]
+    variables: dict[str, str] | None = None
+    rendered: str
 
 
 class PromptConfig(Config):
@@ -51,20 +67,17 @@ class PromptOutputs(Outputs):
     """Outputs from prompt resource.
 
     Attributes:
-        text: Rendered prompt text.
-        instruction_count: Number of instruction lines in the rendered text.
+        spec: The prompt specification with instructions, variables, and rendered text.
     """
 
-    text: str
-    instruction_count: int
+    spec: PromptSpec
 
 
-class Prompt(Resource[PromptConfig, PromptOutputs]):
+class Prompt(AgnoResource[PromptConfig, PromptOutputs, PromptSpec]):
     """Reusable prompt template resource.
 
     Stateless resource (Pragmatiks addition, not in Agno SDK) that enables
-    prompt reuse and versioning. Dependent resources can call render() to
-    get the formatted prompt text.
+    prompt reuse and versioning. The rendered text is available via from_spec().
 
     Template syntax:
         Use {{variable}} for interpolation. Variables must be defined
@@ -75,6 +88,9 @@ class Prompt(Resource[PromptConfig, PromptOutputs]):
         - If only template: interpolate variables
         - If both: interpolate template, append to instructions
 
+    Runtime reconstruction via spec:
+        rendered = Prompt.from_spec(spec)
+
     Lifecycle:
         - on_create: Render and return outputs
         - on_update: Re-render with new config
@@ -84,11 +100,20 @@ class Prompt(Resource[PromptConfig, PromptOutputs]):
     provider: ClassVar[str] = "agno"
     resource: ClassVar[str] = "prompt"
 
-    def render(self) -> str:
-        """Render the prompt text.
+    @staticmethod
+    def from_spec(spec: PromptSpec) -> str:
+        """Factory: return rendered instructions from spec.
 
-        Called by dependent resources (e.g., agno/agent) that need
-        the formatted prompt for their instructions.
+        Args:
+            spec: The prompt specification.
+
+        Returns:
+            The rendered instructions string.
+        """
+        return spec.rendered
+
+    def _render(self) -> str:
+        """Render the prompt text.
 
         Returns:
             Rendered prompt text with variables interpolated.
@@ -106,16 +131,28 @@ class Prompt(Resource[PromptConfig, PromptOutputs]):
 
         return "\n".join(parts)
 
+    def _build_spec(self) -> PromptSpec:
+        """Build the prompt specification with rendered instructions.
+
+        Returns:
+            PromptSpec with instructions, variables, and rendered text.
+        """
+        rendered = self._render()
+        variables = self.config.variables if self.config.variables else None
+
+        return PromptSpec(
+            instructions=self.config.instructions,
+            variables=variables,
+            rendered=rendered,
+        )
+
     def _build_outputs(self) -> PromptOutputs:
         """Build outputs from current config.
 
         Returns:
-            PromptOutputs with rendered text and instruction count.
+            PromptOutputs with spec.
         """
-        text = self.render()
-        instruction_count = len(text.strip().split("\n")) if text.strip() else 0
-
-        return PromptOutputs(text=text, instruction_count=instruction_count)
+        return PromptOutputs(spec=self._build_spec())
 
     async def on_create(self) -> PromptOutputs:
         """Create resource and return rendered outputs.

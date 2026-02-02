@@ -10,11 +10,54 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pragma_sdk import Config, Dependency, Outputs, Resource
+from agno.agent import Agent as AgnoAgent
+from pragma_sdk import Config, Dependency, Outputs
+
+from agno_provider.resources.base import AgnoResource, AgnoSpec
+from agno_provider.resources.knowledge.knowledge import Knowledge, KnowledgeSpec
+from agno_provider.resources.memory.manager import MemoryManager, MemoryManagerSpec
+from agno_provider.resources.models.anthropic import (
+    AnthropicModelOutputs,
+    AnthropicModelSpec,
+)
+from agno_provider.resources.models.base import model_from_spec
+from agno_provider.resources.models.openai import (
+    OpenAIModelOutputs,
+    OpenAIModelSpec,
+)
+from agno_provider.resources.prompt import Prompt, PromptSpec
+from agno_provider.resources.tools.mcp import ToolsMCP, ToolsMCPOutputs, ToolsMCPSpec
+from agno_provider.resources.tools.websearch import ToolsWebSearch, ToolsWebSearchOutputs, ToolsWebSearchSpec
 
 
 if TYPE_CHECKING:
     from gcp_provider import GKE
+
+
+class AgentSpec(AgnoSpec):
+    """Specification for reconstructing an Agno Agent at runtime.
+
+    Contains all necessary information to create an Agent instance
+    with all nested dependencies. Used for deployment to containers
+    where the agent needs to be reconstructed from serialized config.
+
+    Attributes:
+        name: Agent name.
+        instructions: System instructions for the agent.
+        model_spec: Nested spec for the model (OpenAI or Anthropic).
+        knowledge_specs: List of nested knowledge specs for RAG.
+        memory_spec: Optional nested spec for memory management.
+        tools_specs: List of nested tool specs (MCP or WebSearch).
+        prompt_spec: Optional nested prompt spec for instructions template.
+    """
+
+    name: str
+    instructions: str | None = None
+    model_spec: OpenAIModelSpec | AnthropicModelSpec
+    knowledge_specs: list[KnowledgeSpec] = []
+    memory_spec: MemoryManagerSpec | None = None
+    tools_specs: list[ToolsMCPSpec | ToolsWebSearchSpec] = []
+    prompt_spec: PromptSpec | None = None
 
 
 class AgentConfig(Config):
@@ -25,6 +68,10 @@ class AgentConfig(Config):
         model: Model dependency (anthropic/messages or openai/chat) for agent LLM.
         embeddings: Optional embeddings dependency for RAG capabilities.
         vector_store: Optional vector store dependency (qdrant collection) for RAG.
+        knowledges: Optional list of Knowledge dependencies for RAG.
+        memory: Optional MemoryManager dependency for agent memory.
+        tools: Optional list of tool dependencies (MCP or WebSearch).
+        prompt: Optional Prompt dependency for instructions template.
         instructions: System instructions for the agent.
         image: Container image for the agent deployment.
         replicas: Number of agent replicas.
@@ -34,6 +81,10 @@ class AgentConfig(Config):
     model: Dependency
     embeddings: Dependency | None = None
     vector_store: Dependency | None = None
+    knowledges: list[Dependency[Knowledge]] = []
+    memory: Dependency[MemoryManager] | None = None
+    tools: list[Dependency[ToolsMCP] | Dependency[ToolsWebSearch]] = []
+    prompt: Dependency[Prompt] | None = None
     instructions: str | None = None
     image: str = "ghcr.io/agno-ai/agno:latest"
     replicas: int = 1
@@ -43,19 +94,19 @@ class AgentOutputs(Outputs):
     """Outputs from Agno agent deployment.
 
     Attributes:
+        spec: Specification for reconstructing the agent at runtime.
         url: In-cluster URL for agent API.
-        ready: Whether the Deployment is ready.
     """
 
+    spec: AgentSpec
     url: str
-    ready: bool
 
 
 _POLL_INTERVAL_SECONDS = 5
 _MAX_POLL_ATTEMPTS = 60
 
 
-class Agent(Resource[AgentConfig, AgentOutputs]):
+class Agent(AgnoResource[AgentConfig, AgentOutputs, AgentSpec]):
     """Agno AI agent deployed to GKE via kubectl.
 
     Deploys an Agno agent as a Kubernetes Deployment with a Service.
@@ -71,6 +122,49 @@ class Agent(Resource[AgentConfig, AgentOutputs]):
 
     provider: ClassVar[str] = "agno"
     resource: ClassVar[str] = "agent"
+
+    @staticmethod
+    def from_spec(spec: AgentSpec) -> AgnoAgent:
+        """Factory: construct Agno Agent from spec.
+
+        Builds all nested dependencies from their specs and constructs
+        the Agent with all configured components.
+
+        Args:
+            spec: The agent specification.
+
+        Returns:
+            Configured Agno Agent instance.
+        """
+        model = model_from_spec(spec.model_spec)
+
+        knowledge = None
+        if spec.knowledge_specs:
+            knowledge = Knowledge.from_spec(spec.knowledge_specs[0])
+
+        memory_manager = None
+        if spec.memory_spec:
+            memory_manager = MemoryManager.from_spec(spec.memory_spec)
+
+        tools: list[Any] = []
+        for tool_spec in spec.tools_specs:
+            if isinstance(tool_spec, ToolsMCPSpec):
+                tools.append(ToolsMCP.from_spec(tool_spec))
+            else:
+                tools.append(ToolsWebSearch.from_spec(tool_spec))
+
+        instructions = spec.instructions
+        if spec.prompt_spec:
+            instructions = Prompt.from_spec(spec.prompt_spec)
+
+        return AgnoAgent(
+            name=spec.name,
+            model=model,
+            knowledge=knowledge,
+            memory_manager=memory_manager,
+            tools=tools if tools else None,
+            instructions=instructions,
+        )
 
     def _get_deployment_name(self) -> str:
         """Get Kubernetes Deployment name based on resource name.
@@ -394,24 +488,111 @@ users:
         """
         if (prev is None) != (curr is None):
             return True
+
         if prev is not None and curr is not None and prev.id != curr.id:
             return True
+
         return False
 
-    def _build_outputs(self) -> AgentOutputs:
-        """Build outputs with in-cluster service URL.
+    def _list_dependencies_changed(self, prev: list[Dependency], curr: list[Dependency]) -> bool:
+        """Check if a list of dependencies changed.
+
+        Args:
+            prev: Previous list of dependencies.
+            curr: Current list of dependencies.
 
         Returns:
-            AgentOutputs with the service URL and ready status.
+            True if the list changed (different length or different IDs).
+        """
+        if len(prev) != len(curr):
+            return True
+
+        prev_ids = {dep.id for dep in prev}
+        curr_ids = {dep.id for dep in curr}
+
+        return prev_ids != curr_ids
+
+    async def _build_spec(self) -> AgentSpec:
+        """Build spec from resolved dependencies.
+
+        Creates a specification that can be serialized and used to
+        reconstruct the agent at runtime. Extracts nested specs from
+        all resolved dependency outputs.
+
+        Returns:
+            AgentSpec with all nested specs from dependencies.
+
+        Raises:
+            RuntimeError: If model dependency is not resolved or has no spec.
+        """
+        model = await self.config.model.resolve()
+        model_outputs = model.outputs
+
+        if model_outputs is None:
+            msg = "Model dependency not resolved"
+            raise RuntimeError(msg)
+
+        model_spec: OpenAIModelSpec | AnthropicModelSpec
+        if isinstance(model_outputs, OpenAIModelOutputs):
+            model_spec = model_outputs.spec
+        elif isinstance(model_outputs, AnthropicModelOutputs):
+            model_spec = model_outputs.spec
+        else:
+            msg = f"Unsupported model outputs type: {type(model_outputs)}"
+            raise RuntimeError(msg)
+
+        knowledge_specs: list[KnowledgeSpec] = []
+        for kb_dep in self.config.knowledges:
+            kb = await kb_dep.resolve()
+            if kb.outputs is not None:
+                knowledge_specs.append(kb.outputs.spec)
+
+        memory_spec: MemoryManagerSpec | None = None
+        if self.config.memory is not None:
+            memory = await self.config.memory.resolve()
+            if memory.outputs is not None:
+                memory_spec = memory.outputs.spec
+
+        tools_specs: list[ToolsMCPSpec | ToolsWebSearchSpec] = []
+        for tool_dep in self.config.tools:
+            tool = await tool_dep.resolve()
+            if tool.outputs is not None:
+                if isinstance(tool.outputs, ToolsMCPOutputs):
+                    tools_specs.append(tool.outputs.spec)
+                elif isinstance(tool.outputs, ToolsWebSearchOutputs):
+                    tools_specs.append(tool.outputs.spec)
+
+        prompt_spec: PromptSpec | None = None
+        if self.config.prompt is not None:
+            prompt = await self.config.prompt.resolve()
+            if prompt.outputs is not None:
+                prompt_spec = prompt.outputs.spec
+
+        return AgentSpec(
+            name=self.name,
+            instructions=self.config.instructions,
+            model_spec=model_spec,
+            knowledge_specs=knowledge_specs,
+            memory_spec=memory_spec,
+            tools_specs=tools_specs,
+            prompt_spec=prompt_spec,
+        )
+
+    async def _build_outputs(self) -> AgentOutputs:
+        """Build outputs with in-cluster service URL and spec.
+
+        Returns:
+            AgentOutputs with the service URL and spec.
         """
         deployment_name = self._get_deployment_name()
         namespace = self._get_namespace()
 
         url = f"http://{deployment_name}.{namespace}.svc.cluster.local"
+        spec = await self._build_spec()
 
         return AgentOutputs(
+            spec=spec,
             url=url,
-            ready=True,
         )
 
     async def on_create(self) -> AgentOutputs:
@@ -421,7 +602,7 @@ users:
         initial creation and updates.
 
         Returns:
-            AgentOutputs with in-cluster service URL.
+            AgentOutputs with in-cluster service URL and spec.
         """
         kubeconfig = await self._get_kubeconfig()
         env_vars = await self._get_env_vars()
@@ -437,7 +618,7 @@ users:
             await self._apply_manifest(service, str(kubeconfig_path))
             await self._wait_for_ready(str(kubeconfig_path))
 
-        return self._build_outputs()
+        return await self._build_outputs()
 
     async def on_update(self, previous_config: AgentConfig) -> AgentOutputs:
         """Update Agno agent deployment.
@@ -446,7 +627,7 @@ users:
             previous_config: The previous configuration before update.
 
         Returns:
-            AgentOutputs with in-cluster service URL.
+            AgentOutputs with in-cluster service URL and spec.
 
         Raises:
             ValueError: If cluster dependency changed (immutable field).
@@ -456,13 +637,22 @@ users:
             raise ValueError(msg)
 
         if self.outputs is not None:
-            previous_dict = previous_config.model_dump(exclude={"cluster", "model", "embeddings", "vector_store"})
-            current_dict = self.config.model_dump(exclude={"cluster", "model", "embeddings", "vector_store"})
+            previous_dict = previous_config.model_dump(
+                exclude={"cluster", "model", "embeddings", "vector_store", "knowledges", "memory", "tools", "prompt"}
+            )
+            current_dict = self.config.model_dump(
+                exclude={"cluster", "model", "embeddings", "vector_store", "knowledges", "memory", "tools", "prompt"}
+            )
             deps_changed = (
                 previous_config.model.id != self.config.model.id
                 or self._dependency_changed(previous_config.embeddings, self.config.embeddings)
                 or self._dependency_changed(previous_config.vector_store, self.config.vector_store)
+                or self._dependency_changed(previous_config.memory, self.config.memory)
+                or self._dependency_changed(previous_config.prompt, self.config.prompt)
+                or self._list_dependencies_changed(previous_config.knowledges, self.config.knowledges)
+                or self._list_dependencies_changed(previous_config.tools, self.config.tools)
             )
+
             if previous_dict == current_dict and not deps_changed:
                 return self.outputs
 
@@ -480,7 +670,7 @@ users:
             await self._apply_manifest(service, str(kubeconfig_path))
             await self._wait_for_ready(str(kubeconfig_path))
 
-        return self._build_outputs()
+        return await self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete Agno agent Deployment and Service.

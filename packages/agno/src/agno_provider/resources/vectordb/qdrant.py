@@ -5,9 +5,44 @@ from __future__ import annotations
 from typing import Any, ClassVar, Literal
 
 from agno.vectordb.qdrant import Qdrant, SearchType
-from pragma_sdk import Config, Dependency, Field, Outputs, Resource
+from pragma_sdk import Config, Dependency, Field, Outputs
+from pydantic import computed_field
 
-from agno_provider.resources.knowledge.embedder.openai import EmbedderOpenAI
+from agno_provider.resources.base import AgnoResource, AgnoSpec
+from agno_provider.resources.knowledge.embedder.openai import (
+    EmbedderOpenAI,
+    EmbedderOpenAISpec,
+)
+
+
+class VectordbQdrantSpec(AgnoSpec):
+    """Specification for reconstructing Qdrant VectorDB at runtime.
+
+    Contains all necessary information to create a Qdrant instance.
+
+    Attributes:
+        url: Qdrant server URL.
+        collection: Collection name.
+        api_key: Optional API key for authentication.
+        search_type: Search type - vector, keyword, or hybrid.
+        embedder_spec: Nested spec for embedder configuration.
+    """
+
+    url: str
+    collection: str
+    api_key: str | None = None
+    search_type: Literal["vector", "keyword", "hybrid"] = "vector"
+    embedder_spec: EmbedderOpenAISpec | None = None
+
+    @computed_field
+    @property
+    def search_type_enum(self) -> SearchType:
+        """Convert string search_type to Agno SearchType enum."""
+        return {
+            "vector": SearchType.vector,
+            "keyword": SearchType.keyword,
+            "hybrid": SearchType.hybrid,
+        }[self.search_type]
 
 
 class VectordbQdrantConfig(Config):
@@ -35,21 +70,15 @@ class VectordbQdrantOutputs(Outputs):
     """Outputs from Agno Qdrant VectorDB resource.
 
     Attributes:
-        url: Qdrant server URL.
-        collection: Collection name.
-        search_type: Configured search type.
+        spec: Specification for reconstructing the vectordb at runtime.
         pip_dependencies: Python packages required for this configuration.
-        ready: Whether the vector store is ready for use.
     """
 
-    url: str
-    collection: str
-    search_type: str
+    spec: VectordbQdrantSpec
     pip_dependencies: list[str]
-    ready: bool
 
 
-class VectordbQdrant(Resource[VectordbQdrantConfig, VectordbQdrantOutputs]):
+class VectordbQdrant(AgnoResource[VectordbQdrantConfig, VectordbQdrantOutputs, VectordbQdrantSpec]):
     """Agno Qdrant VectorDB resource.
 
     Wraps Agno's Qdrant class to provide vector storage for knowledge bases.
@@ -68,13 +97,8 @@ class VectordbQdrant(Resource[VectordbQdrantConfig, VectordbQdrantOutputs]):
             $ref: qdrant/database/main.api_key
           search_type: hybrid
 
-    Usage by dependent resources:
-        vector_db: Dependency[VectordbQdrant]
-
-        async def on_create(self):
-            qdrant_resource = await self.config.vector_db.resolve()
-            db = qdrant_resource.vectordb()
-            knowledge = Knowledge(vector_db=db, ...)
+    Runtime reconstruction via spec:
+        qdrant = VectordbQdrant.from_spec(spec)
 
     Lifecycle:
         - on_create: Return configuration metadata
@@ -84,6 +108,68 @@ class VectordbQdrant(Resource[VectordbQdrantConfig, VectordbQdrantOutputs]):
 
     provider: ClassVar[str] = "agno"
     resource: ClassVar[str] = "vectordb/qdrant"
+
+    @staticmethod
+    def from_spec(spec: VectordbQdrantSpec) -> Qdrant:
+        """Factory: construct Agno Qdrant from spec.
+
+        Args:
+            spec: The vectordb specification.
+
+        Returns:
+            Configured Qdrant instance.
+        """
+        kwargs: dict[str, Any] = {
+            "url": spec.url,
+            "collection": spec.collection,
+            "search_type": spec.search_type_enum,
+        }
+
+        if spec.api_key:
+            kwargs["api_key"] = spec.api_key
+
+        if spec.embedder_spec:
+            kwargs["embedder"] = EmbedderOpenAI.from_spec(spec.embedder_spec)
+
+        return Qdrant(**kwargs)
+
+    def _build_spec(self) -> VectordbQdrantSpec:
+        """Build spec from current config.
+
+        Creates a specification that can be serialized and used to
+        reconstruct the vectordb at runtime.
+
+        Returns:
+            VectordbQdrantSpec with all configuration fields.
+        """
+        api_key = str(self.config.api_key) if self.config.api_key is not None else None
+
+        embedder_spec = None
+        if (
+            self.config.embedder is not None
+            and self.config.embedder._resolved is not None
+            and self.config.embedder._resolved.outputs is not None
+        ):
+            embedder_spec = self.config.embedder._resolved.outputs.spec
+
+        return VectordbQdrantSpec(
+            url=str(self.config.url),
+            collection=str(self.config.collection),
+            api_key=api_key,
+            search_type=self.config.search_type,
+            embedder_spec=embedder_spec,
+        )
+
+    def _build_outputs(self) -> VectordbQdrantOutputs:
+        """Build outputs from current config.
+
+        Returns:
+            VectordbQdrantOutputs with spec and pip dependencies.
+        """
+        return VectordbQdrantOutputs(
+            spec=self._build_spec(),
+            pip_dependencies=self._get_pip_dependencies(),
+        )
 
     def _get_search_type(self) -> SearchType:
         """Map search type string to Agno SearchType enum.
@@ -109,42 +195,13 @@ class VectordbQdrant(Resource[VectordbQdrantConfig, VectordbQdrantOutputs]):
 
         return []
 
-    def vectordb(self) -> Qdrant:
-        """Return configured Agno Qdrant instance.
-
-        Called by dependent resources (e.g., agno/knowledge) that need
-        the vector database instance.
-
-        Returns:
-            Configured Agno Qdrant instance ready for use.
-        """
-        kwargs: dict[str, Any] = {
-            "collection": str(self.config.collection),
-            "url": str(self.config.url),
-            "search_type": self._get_search_type(),
-        }
-
-        if self.config.api_key is not None:
-            kwargs["api_key"] = str(self.config.api_key)
-
-        if self.config.embedder is not None and self.config.embedder._resolved is not None:
-            kwargs["embedder"] = self.config.embedder._resolved.embedder()
-
-        return Qdrant(**kwargs)
-
     async def on_create(self) -> VectordbQdrantOutputs:
         """Create resource and return serializable outputs.
 
         Returns:
             VectordbQdrantOutputs with configuration metadata.
         """
-        return VectordbQdrantOutputs(
-            url=str(self.config.url),
-            collection=str(self.config.collection),
-            search_type=self.config.search_type,
-            pip_dependencies=self._get_pip_dependencies(),
-            ready=True,
-        )
+        return self._build_outputs()
 
     async def on_update(self, previous_config: VectordbQdrantConfig) -> VectordbQdrantOutputs:  # noqa: ARG002
         """Update resource and return serializable outputs.
@@ -152,13 +209,7 @@ class VectordbQdrant(Resource[VectordbQdrantConfig, VectordbQdrantOutputs]):
         Returns:
             VectordbQdrantOutputs with updated configuration metadata.
         """
-        return VectordbQdrantOutputs(
-            url=str(self.config.url),
-            collection=str(self.config.collection),
-            search_type=self.config.search_type,
-            pip_dependencies=self._get_pip_dependencies(),
-            ready=True,
-        )
+        return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete is a no-op since this resource is stateless."""

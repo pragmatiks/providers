@@ -85,7 +85,6 @@ async def test_create_agent_success(
     result = await agent.on_create()
 
     assert result.url == "http://agno-test-agent.default.svc.cluster.local"
-    assert result.ready is True
 
 
 async def test_create_agent_with_all_dependencies(
@@ -107,7 +106,7 @@ async def test_create_agent_with_all_dependencies(
 
     result = await agent.on_create()
 
-    assert result.ready is True
+    assert result.url is not None
 
     apply_calls = [c for c in mock_subprocess.call_args_list if c[0][0][0] == "kubectl" and "apply" in c[0][0]]
     assert len(apply_calls) >= 2
@@ -128,7 +127,7 @@ async def test_create_agent_custom_image(
 
     result = await agent.on_create()
 
-    assert result.ready is True
+    assert result.url is not None
 
 
 async def test_create_agent_multiple_replicas(
@@ -157,7 +156,7 @@ async def test_create_agent_multiple_replicas(
 
     result = await agent.on_create()
 
-    assert result.ready is True
+    assert result.url is not None
 
 
 async def test_create_agent_waits_for_ready(
@@ -191,7 +190,7 @@ async def test_create_agent_waits_for_ready(
 
     result = await agent.on_create()
 
-    assert result.ready is True
+    assert result.url is not None
     assert call_count >= 2
 
 
@@ -231,7 +230,6 @@ async def test_update_unchanged_returns_existing(
 ) -> None:
     existing_outputs = AgentOutputs(
         url="http://agno-test-agent.default.svc.cluster.local",
-        ready=True,
     )
 
     agent = create_agent_with_mocked_dependencies(
@@ -279,7 +277,6 @@ async def test_update_replicas_triggers_kubectl_apply(
         mock_model_resource=mock_model_resource,
         outputs=AgentOutputs(
             url="http://agno-test-agent.default.svc.cluster.local",
-            ready=True,
         ),
     )
 
@@ -291,7 +288,7 @@ async def test_update_replicas_triggers_kubectl_apply(
 
     result = await agent.on_update(previous_config)
 
-    assert result.ready is True
+    assert result.url is not None
 
 
 async def test_update_rejects_cluster_change(
@@ -336,7 +333,6 @@ async def test_update_model_change_triggers_apply(
         mock_model_resource=mock_model_resource,
         outputs=AgentOutputs(
             url="http://agno-test-agent.default.svc.cluster.local",
-            ready=True,
         ),
     )
 
@@ -347,7 +343,7 @@ async def test_update_model_change_triggers_apply(
 
     result = await agent.on_update(previous_config)
 
-    assert result.ready is True
+    assert result.url is not None
     apply_calls = [c for c in mock_run.call_args_list if c[0][0][0] == "kubectl" and "apply" in c[0][0]]
     assert len(apply_calls) >= 2
 
@@ -414,7 +410,6 @@ def test_build_outputs() -> None:
     outputs = agent._build_outputs()
 
     assert outputs.url == "http://agno-my-agent.default.svc.cluster.local"
-    assert outputs.ready is True
 
 
 def test_deployment_name() -> None:

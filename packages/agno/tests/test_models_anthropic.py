@@ -9,8 +9,8 @@ from pragma_sdk.provider import ProviderHarness
 from agno_provider import (
     AnthropicModel,
     AnthropicModelConfig,
-    ModelOutputs,
 )
+from agno_provider.resources.models.anthropic import AnthropicModelOutputs, AnthropicModelSpec
 
 
 @pytest.fixture
@@ -30,24 +30,19 @@ async def test_create_returns_serializable_outputs(harness: ProviderHarness) -> 
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.model_id == "claude-sonnet-4-20250514"
+    assert result.outputs.spec.id == "claude-sonnet-4-20250514"
 
     assert not hasattr(result.outputs, "model")
 
 
-async def test_model_method_returns_claude_instance(harness: ProviderHarness) -> None:
-    """model() method returns a Claude instance."""
-    config = AnthropicModelConfig(
+def test_from_spec_returns_claude_instance() -> None:
+    """from_spec() returns a Claude instance."""
+    spec = AnthropicModelSpec(
         id="claude-sonnet-4-20250514",
         api_key="sk-test-key",
     )
 
-    result = await harness.invoke_create(AnthropicModel, name="claude-sonnet", config=config)
-
-    assert result.success
-    assert result.resource is not None
-
-    claude = result.resource.model()
+    claude = AnthropicModel.from_spec(spec)
 
     assert isinstance(claude, Claude)
     assert claude.id == "claude-sonnet-4-20250514"
@@ -55,9 +50,9 @@ async def test_model_method_returns_claude_instance(harness: ProviderHarness) ->
     assert claude.max_tokens == 8192  # Default
 
 
-async def test_model_method_passes_optional_params(harness: ProviderHarness) -> None:
-    """model() method passes optional parameters to Claude."""
-    config = AnthropicModelConfig(
+def test_from_spec_passes_optional_params() -> None:
+    """from_spec() passes optional parameters to Claude."""
+    spec = AnthropicModelSpec(
         id="claude-sonnet-4-20250514",
         api_key="sk-test-key",
         max_tokens=4096,
@@ -67,10 +62,7 @@ async def test_model_method_passes_optional_params(harness: ProviderHarness) -> 
         stop_sequences=["STOP", "END"],
     )
 
-    result = await harness.invoke_create(AnthropicModel, name="claude-sonnet", config=config)
-
-    assert result.success
-    claude = result.resource.model()
+    claude = AnthropicModel.from_spec(spec)
 
     assert claude.max_tokens == 4096
     assert claude.temperature == 0.7
@@ -79,17 +71,14 @@ async def test_model_method_passes_optional_params(harness: ProviderHarness) -> 
     assert claude.stop_sequences == ["STOP", "END"]
 
 
-async def test_model_method_omits_none_optional_params(harness: ProviderHarness) -> None:
-    """model() method does not pass None values to Claude."""
-    config = AnthropicModelConfig(
+def test_from_spec_omits_none_optional_params() -> None:
+    """from_spec() does not pass None values to Claude."""
+    spec = AnthropicModelSpec(
         id="claude-sonnet-4-20250514",
         api_key="sk-test-key",
     )
 
-    result = await harness.invoke_create(AnthropicModel, name="claude-sonnet", config=config)
-
-    assert result.success
-    claude = result.resource.model()
+    claude = AnthropicModel.from_spec(spec)
 
     assert claude.temperature is None
     assert claude.top_p is None
@@ -113,16 +102,18 @@ async def test_update_returns_serializable_outputs(harness: ProviderHarness) -> 
         name="claude-sonnet",
         config=current,
         previous_config=previous,
-        current_outputs=ModelOutputs(model_id="claude-3-5-sonnet-20241022"),
+        current_outputs=AnthropicModelOutputs(
+            spec=AnthropicModelSpec(id="claude-3-5-sonnet-20241022", api_key="sk-old-key"),
+        ),
     )
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.model_id == "claude-sonnet-4-20250514"
+    assert result.outputs.spec.id == "claude-sonnet-4-20250514"
 
 
-async def test_update_model_method_uses_new_config(harness: ProviderHarness) -> None:
-    """After update, model() method returns Claude with new config."""
+async def test_update_from_spec_uses_new_config(harness: ProviderHarness) -> None:
+    """After update, from_spec() returns Claude with new config."""
     previous = AnthropicModelConfig(
         id="claude-3-5-sonnet-20241022",
         api_key="sk-old-key",
@@ -137,11 +128,13 @@ async def test_update_model_method_uses_new_config(harness: ProviderHarness) -> 
         name="claude-sonnet",
         config=current,
         previous_config=previous,
-        current_outputs=ModelOutputs(model_id="claude-3-5-sonnet-20241022"),
+        current_outputs=AnthropicModelOutputs(
+            spec=AnthropicModelSpec(id="claude-3-5-sonnet-20241022", api_key="sk-old-key"),
+        ),
     )
 
     assert result.success
-    claude = result.resource.model()
+    claude = AnthropicModel.from_spec(result.outputs.spec)
 
     assert claude.id == "claude-sonnet-4-20250514"
     assert claude.api_key == "sk-new-key"
@@ -185,9 +178,11 @@ def test_config_defaults() -> None:
 
 def test_outputs_are_serializable() -> None:
     """Outputs contain only serializable data."""
-    outputs = ModelOutputs(model_id="claude-sonnet-4-20250514")
+    outputs = AnthropicModelOutputs(
+        spec=AnthropicModelSpec(id="claude-sonnet-4-20250514", api_key="sk-test"),
+    )
 
-    assert outputs.model_id == "claude-sonnet-4-20250514"
+    assert outputs.spec.id == "claude-sonnet-4-20250514"
 
     serialized = outputs.model_dump_json()
     assert "claude-sonnet-4-20250514" in serialized

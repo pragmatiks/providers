@@ -13,11 +13,14 @@ from agno_provider import (
     DbPostgresConfig,
     Model,
 )
+from agno_provider.resources.db.postgres import DbPostgresOutputs, DbPostgresSpec
 from agno_provider.resources.memory import (
     MemoryManager,
     MemoryManagerConfig,
     MemoryManagerOutputs,
 )
+from agno_provider.resources.memory.manager import MemoryManagerSpec
+from agno_provider.resources.models.openai import OpenAIModelSpec
 
 
 MemoryManagerConfig.model_rebuild(_types_namespace={"Model": Model, "DbPostgres": DbPostgres})
@@ -35,6 +38,12 @@ def mock_db_resource(mocker: MockerFixture) -> DbPostgres:
         db_schema="test_schema",
     )
     resource = DbPostgres(name="test-db", config=config)
+    resource.outputs = DbPostgresOutputs(
+        spec=DbPostgresSpec(
+            connection_url="postgresql://user:pass@localhost:5432/testdb",
+            db_schema="test_schema",
+        ),
+    )
     return resource
 
 
@@ -134,19 +143,20 @@ def test_config_with_all_options(
 def test_outputs_are_serializable() -> None:
     """Outputs contain only serializable data."""
     outputs = MemoryManagerOutputs(
-        ready=True,
-        db_schema="ai",
-        has_model=True,
+        spec=MemoryManagerSpec(
+            db_spec=DbPostgresSpec(
+                connection_url="postgresql://user:pass@localhost:5432/db",
+                db_schema="ai",
+            ),
+        ),
     )
 
-    assert outputs.ready is True
-    assert outputs.db_schema == "ai"
-    assert outputs.has_model is True
+    assert outputs.spec is not None
+    assert outputs.spec.db_spec.db_schema == "ai"
 
     serialized = outputs.model_dump_json()
-    assert "ready" in serialized
-    assert "db_schema" in serialized
-    assert "has_model" in serialized
+    assert "spec" in serialized
+    assert "db_spec" in serialized
 
 
 async def test_create_with_db_only(
@@ -160,9 +170,8 @@ async def test_create_with_db_only(
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is True
-    assert result.outputs.db_schema == "test_schema"
-    assert result.outputs.has_model is False
+    assert result.outputs.spec.db_spec.db_schema == "test_schema"
+    assert result.outputs.spec.model_spec is None
 
 
 async def test_create_with_model(
@@ -170,7 +179,7 @@ async def test_create_with_model(
     mock_db_dependency: Dependency[DbPostgres],
     mock_model_dependency: Dependency[Model],
 ) -> None:
-    """on_create with db and model returns has_model=True."""
+    """on_create with db and model returns outputs with model_spec."""
     config = MemoryManagerConfig(
         db=mock_db_dependency,
         model=mock_model_dependency,
@@ -180,9 +189,8 @@ async def test_create_with_model(
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is True
-    assert result.outputs.db_schema == "test_schema"
-    assert result.outputs.has_model is True
+    assert result.outputs.spec.db_spec.db_schema == "test_schema"
+    assert result.outputs.spec.model_spec is not None
 
 
 async def test_create_with_all_options(
@@ -208,19 +216,18 @@ async def test_create_with_all_options(
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is True
-    assert result.outputs.has_model is True
+    assert result.outputs.spec.model_spec is not None
+    assert result.outputs.spec.system_message == "Custom system message"
+    assert result.outputs.spec.debug_mode is True
 
 
-async def test_memory_manager_method(
-    mocker: MockerFixture,
-    mock_db_dependency: Dependency[DbPostgres],
-    mock_model_dependency: Dependency[Model],
-) -> None:
-    """memory_manager() returns configured AgnoMemoryManager instance."""
-    config = MemoryManagerConfig(
-        db=mock_db_dependency,
-        model=mock_model_dependency,
+def test_from_spec_with_db_only(mocker: MockerFixture) -> None:
+    """from_spec() returns configured AgnoMemoryManager instance with db only."""
+    spec = MemoryManagerSpec(
+        db_spec=DbPostgresSpec(
+            connection_url="postgresql://user:pass@localhost:5432/testdb",
+            db_schema="test_schema",
+        ),
         system_message="Test system message",
         memory_capture_instructions="Test capture instructions",
         add_memories=True,
@@ -230,14 +237,12 @@ async def test_memory_manager_method(
         debug_mode=True,
     )
 
-    resource = MemoryManager(name="test-memory", config=config)
-
     mock_init = mocker.patch(
         "agno.memory.manager.MemoryManager.__init__",
         return_value=None,
     )
 
-    await resource.memory_manager()
+    MemoryManager.from_spec(spec)
 
     mock_init.assert_called_once()
     call_kwargs = mock_init.call_args.kwargs
@@ -250,30 +255,34 @@ async def test_memory_manager_method(
     assert call_kwargs["clear_memories"] is False
     assert call_kwargs["debug_mode"] is True
     assert call_kwargs["db"] is not None
-    assert call_kwargs["model"] is not None
+    assert call_kwargs["model"] is None
 
 
-async def test_memory_manager_method_without_model(
-    mocker: MockerFixture,
-    mock_db_dependency: Dependency[DbPostgres],
-) -> None:
-    """memory_manager() works without model dependency."""
-    config = MemoryManagerConfig(db=mock_db_dependency)
-
-    resource = MemoryManager(name="test-memory", config=config)
+def test_from_spec_with_model(mocker: MockerFixture) -> None:
+    """from_spec() constructs model from nested spec."""
+    spec = MemoryManagerSpec(
+        db_spec=DbPostgresSpec(
+            connection_url="postgresql://user:pass@localhost:5432/testdb",
+            db_schema="test_schema",
+        ),
+        model_spec=OpenAIModelSpec(
+            id="gpt-4o",
+            api_key="sk-test-key",
+        ),
+    )
 
     mock_init = mocker.patch(
         "agno.memory.manager.MemoryManager.__init__",
         return_value=None,
     )
 
-    await resource.memory_manager()
+    MemoryManager.from_spec(spec)
 
     mock_init.assert_called_once()
     call_kwargs = mock_init.call_args.kwargs
 
     assert call_kwargs["db"] is not None
-    assert call_kwargs["model"] is None
+    assert call_kwargs["model"] is not None
 
 
 async def test_update(
@@ -288,9 +297,12 @@ async def test_update(
         model=mock_model_dependency,
     )
     previous_outputs = MemoryManagerOutputs(
-        ready=True,
-        db_schema="test_schema",
-        has_model=False,
+        spec=MemoryManagerSpec(
+            db_spec=DbPostgresSpec(
+                connection_url="postgresql://user:pass@localhost:5432/testdb",
+                db_schema="test_schema",
+            ),
+        ),
     )
 
     result = await harness.invoke_update(
@@ -303,9 +315,8 @@ async def test_update(
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.ready is True
-    assert result.outputs.db_schema == "test_schema"
-    assert result.outputs.has_model is True
+    assert result.outputs.spec.db_spec.db_schema == "test_schema"
+    assert result.outputs.spec.model_spec is not None
 
 
 async def test_delete(

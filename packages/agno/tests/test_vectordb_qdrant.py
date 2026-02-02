@@ -15,6 +15,7 @@ from agno_provider import (
     VectordbQdrantConfig,
     VectordbQdrantOutputs,
 )
+from agno_provider.resources.vectordb.qdrant import VectordbQdrantSpec
 
 
 if TYPE_CHECKING:
@@ -97,74 +98,65 @@ def test_config_with_search_type() -> None:
 def test_outputs_are_serializable() -> None:
     """Outputs contain only serializable data."""
     outputs = VectordbQdrantOutputs(
-        url="http://localhost:6333",
-        collection="test-collection",
-        search_type="vector",
+        spec=VectordbQdrantSpec(
+            url="http://localhost:6333",
+            collection="test-collection",
+            search_type="vector",
+        ),
         pip_dependencies=[],
-        ready=True,
     )
 
-    assert outputs.url == "http://localhost:6333"
-    assert outputs.collection == "test-collection"
-    assert outputs.search_type == "vector"
+    assert outputs.spec.url == "http://localhost:6333"
+    assert outputs.spec.collection == "test-collection"
+    assert outputs.spec.search_type == "vector"
     assert outputs.pip_dependencies == []
-    assert outputs.ready is True
 
     serialized = outputs.model_dump_json()
-    assert "url" in serialized
-    assert "collection" in serialized
-    assert "search_type" in serialized
+    assert "spec" in serialized
     assert "pip_dependencies" in serialized
-    assert "ready" in serialized
 
 
-def test_vectordb_method_returns_qdrant_instance() -> None:
-    """vectordb() returns configured Agno Qdrant instance."""
-    config = VectordbQdrantConfig(
+def test_from_spec_returns_qdrant_instance() -> None:
+    """from_spec() returns configured Agno Qdrant instance."""
+    spec = VectordbQdrantSpec(
         url="http://localhost:6333",
         collection="test-collection",
         search_type="vector",
     )
 
-    resource = VectordbQdrant(name="test-qdrant", config=config)
-
-    db = resource.vectordb()
+    db = VectordbQdrant.from_spec(spec)
 
     assert isinstance(db, Qdrant)
 
 
-def test_vectordb_method_with_api_key() -> None:
-    """vectordb() passes API key when provided."""
-    config = VectordbQdrantConfig(
+def test_from_spec_with_api_key() -> None:
+    """from_spec() passes API key when provided."""
+    spec = VectordbQdrantSpec(
         url="https://qdrant-cloud.example.com:6333",
         collection="cloud-collection",
         api_key="qdrant-api-key-123",
         search_type="vector",
     )
 
-    resource = VectordbQdrant(name="test-qdrant", config=config)
-
-    db = resource.vectordb()
+    db = VectordbQdrant.from_spec(spec)
 
     assert isinstance(db, Qdrant)
 
 
-def test_vectordb_method_with_hybrid_search() -> None:
-    """vectordb() configures hybrid search when specified.
+def test_from_spec_with_hybrid_search() -> None:
+    """from_spec() configures hybrid search when specified.
 
     Note: Hybrid search requires fastembed package which needs
     onnxruntime. Skips on Python 3.14+ where onnxruntime isn't available.
     """
-    config = VectordbQdrantConfig(
+    spec = VectordbQdrantSpec(
         url="http://localhost:6333",
         collection="test-collection",
         search_type="hybrid",
     )
 
-    resource = VectordbQdrant(name="test-qdrant", config=config)
-
     try:
-        db = resource.vectordb()
+        db = VectordbQdrant.from_spec(spec)
         assert isinstance(db, Qdrant)
     except ImportError as e:
         error_msg = str(e).lower()
@@ -263,11 +255,10 @@ async def test_lifecycle_create_returns_outputs(harness: ProviderHarness) -> Non
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.url == "http://localhost:6333"
-    assert result.outputs.collection == "test-collection"
-    assert result.outputs.search_type == "hybrid"
+    assert result.outputs.spec.url == "http://localhost:6333"
+    assert result.outputs.spec.collection == "test-collection"
+    assert result.outputs.spec.search_type == "hybrid"
     assert result.outputs.pip_dependencies == ["fastembed>=0.6.0"]
-    assert result.outputs.ready is True
 
 
 async def test_lifecycle_update_returns_outputs(harness: ProviderHarness) -> None:
@@ -283,11 +274,12 @@ async def test_lifecycle_update_returns_outputs(harness: ProviderHarness) -> Non
         search_type="hybrid",
     )
     current_outputs = VectordbQdrantOutputs(
-        url="http://localhost:6333",
-        collection="old-collection",
-        search_type="vector",
+        spec=VectordbQdrantSpec(
+            url="http://localhost:6333",
+            collection="old-collection",
+            search_type="vector",
+        ),
         pip_dependencies=[],
-        ready=True,
     )
 
     result = await harness.invoke_update(
@@ -300,8 +292,8 @@ async def test_lifecycle_update_returns_outputs(harness: ProviderHarness) -> Non
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.collection == "new-collection"
-    assert result.outputs.search_type == "hybrid"
+    assert result.outputs.spec.collection == "new-collection"
+    assert result.outputs.spec.search_type == "hybrid"
     assert result.outputs.pip_dependencies == ["fastembed>=0.6.0"]
 
 
@@ -317,80 +309,19 @@ async def test_lifecycle_delete_success(harness: ProviderHarness) -> None:
     assert result.success
 
 
-def test_vectordb_without_embedder(mocker: MockerFixture) -> None:
-    """vectordb() works when embedder is None (default behavior)."""
-    config = VectordbQdrantConfig(
+def test_from_spec_without_embedder(mocker: MockerFixture) -> None:
+    """from_spec() works when embedder is None (default behavior)."""
+    spec = VectordbQdrantSpec(
         url="http://localhost:6333",
         collection="test-collection",
         search_type="vector",
     )
 
-    resource = VectordbQdrant(name="test-qdrant", config=config)
-
     mock_init = mocker.patch("agno.vectordb.qdrant.Qdrant.__init__", return_value=None)
-    resource.vectordb()
+    VectordbQdrant.from_spec(spec)
 
     mock_init.assert_called_once()
     call_kwargs = mock_init.call_args.kwargs
     assert "embedder" not in call_kwargs
     assert call_kwargs["collection"] == "test-collection"
     assert call_kwargs["url"] == "http://localhost:6333"
-
-
-def test_vectordb_with_embedder_dependency(mocker: MockerFixture) -> None:
-    """vectordb() passes embedder to Qdrant when dependency is resolved."""
-    mock_embedder = mocker.MagicMock(spec=["get_embedding"])
-    mock_embedder_resource = mocker.MagicMock()
-    mock_embedder_resource.embedder.return_value = mock_embedder
-
-    embedder_dep = Dependency[EmbedderOpenAI](
-        provider="agno",
-        resource="knowledge/embedder/openai",
-        name="my-embedder",
-    )
-    embedder_dep._resolved = mock_embedder_resource
-
-    config = VectordbQdrantConfig(
-        url="http://localhost:6333",
-        collection="test-collection",
-        search_type="vector",
-        embedder=embedder_dep,
-    )
-
-    resource = VectordbQdrant(name="test-qdrant", config=config)
-
-    mock_init = mocker.patch("agno.vectordb.qdrant.Qdrant.__init__", return_value=None)
-    resource.vectordb()
-
-    mock_init.assert_called_once()
-    call_kwargs = mock_init.call_args.kwargs
-    assert call_kwargs["embedder"] is mock_embedder
-    assert call_kwargs["collection"] == "test-collection"
-    assert call_kwargs["url"] == "http://localhost:6333"
-
-    mock_embedder_resource.embedder.assert_called_once()
-
-
-def test_vectordb_with_unresolved_embedder_dependency(mocker: MockerFixture) -> None:
-    """vectordb() does not pass embedder when dependency is not resolved."""
-    embedder_dep = Dependency[EmbedderOpenAI](
-        provider="agno",
-        resource="knowledge/embedder/openai",
-        name="my-embedder",
-    )
-
-    config = VectordbQdrantConfig(
-        url="http://localhost:6333",
-        collection="test-collection",
-        search_type="vector",
-        embedder=embedder_dep,
-    )
-
-    resource = VectordbQdrant(name="test-qdrant", config=config)
-
-    mock_init = mocker.patch("agno.vectordb.qdrant.Qdrant.__init__", return_value=None)
-    resource.vectordb()
-
-    mock_init.assert_called_once()
-    call_kwargs = mock_init.call_args.kwargs
-    assert "embedder" not in call_kwargs

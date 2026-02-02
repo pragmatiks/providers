@@ -11,6 +11,7 @@ from agno_provider import (
     PromptConfig,
     PromptOutputs,
 )
+from agno_provider.resources.prompt import PromptSpec
 
 
 async def test_create_with_instructions_only(harness: ProviderHarness) -> None:
@@ -23,8 +24,8 @@ async def test_create_with_instructions_only(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "You are a helpful assistant.\nBe concise."
-    assert result.outputs.instruction_count == 2
+    assert result.outputs.spec.rendered == "You are a helpful assistant.\nBe concise."
+    assert result.outputs.spec.instructions == ["You are a helpful assistant.", "Be concise."]
 
 
 async def test_create_with_template_only(harness: ProviderHarness) -> None:
@@ -38,8 +39,7 @@ async def test_create_with_template_only(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "Hello Assistant, your role is helper."
-    assert result.outputs.instruction_count == 1
+    assert result.outputs.spec.rendered == "Hello Assistant, your role is helper."
 
 
 async def test_create_with_instructions_and_template(harness: ProviderHarness) -> None:
@@ -54,22 +54,17 @@ async def test_create_with_instructions_and_template(harness: ProviderHarness) -
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "Base instruction.\nDynamic: assist users"
-    assert result.outputs.instruction_count == 2
+    assert result.outputs.spec.rendered == "Base instruction.\nDynamic: assist users"
 
 
-async def test_render_method_returns_text(harness: ProviderHarness) -> None:
-    """render() method returns the formatted prompt text."""
-    config = PromptConfig(
+async def test_from_spec_returns_rendered_text(harness: ProviderHarness) -> None:
+    """from_spec() returns the rendered prompt text."""
+    spec = PromptSpec(
         instructions=["Line 1", "Line 2"],
+        rendered="Line 1\nLine 2",
     )
 
-    result = await harness.invoke_create(Prompt, name="render-test", config=config)
-
-    assert result.success
-    assert result.resource is not None
-
-    text = result.resource.render()
+    text = Prompt.from_spec(spec)
 
     assert text == "Line 1\nLine 2"
 
@@ -116,7 +111,9 @@ async def test_update_changes_outputs(harness: ProviderHarness) -> None:
     current = PromptConfig(
         instructions=["New instruction.", "Added line."],
     )
-    previous_outputs = PromptOutputs(text="Old instruction.", instruction_count=1)
+    previous_outputs = PromptOutputs(
+        spec=PromptSpec(instructions=["Old instruction."], rendered="Old instruction."),
+    )
 
     result = await harness.invoke_update(
         Prompt,
@@ -128,8 +125,7 @@ async def test_update_changes_outputs(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "New instruction.\nAdded line."
-    assert result.outputs.instruction_count == 2
+    assert result.outputs.spec.rendered == "New instruction.\nAdded line."
 
 
 async def test_update_with_variable_changes(harness: ProviderHarness) -> None:
@@ -142,7 +138,9 @@ async def test_update_with_variable_changes(harness: ProviderHarness) -> None:
         template="Hello {{name}}!",
         variables={"name": "Bob"},
     )
-    previous_outputs = PromptOutputs(text="Hello Alice!", instruction_count=1)
+    previous_outputs = PromptOutputs(
+        spec=PromptSpec(instructions=[], variables={"name": "Alice"}, rendered="Hello Alice!"),
+    )
 
     result = await harness.invoke_update(
         Prompt,
@@ -154,7 +152,7 @@ async def test_update_with_variable_changes(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "Hello Bob!"
+    assert result.outputs.spec.rendered == "Hello Bob!"
 
 
 async def test_delete_success(harness: ProviderHarness) -> None:
@@ -180,14 +178,15 @@ def test_resource_type() -> None:
 
 def test_outputs_are_serializable() -> None:
     """Outputs contain only serializable data."""
-    outputs = PromptOutputs(text="Test prompt", instruction_count=1)
+    outputs = PromptOutputs(
+        spec=PromptSpec(instructions=["Test prompt"], rendered="Test prompt"),
+    )
 
-    assert outputs.text == "Test prompt"
-    assert outputs.instruction_count == 1
+    assert outputs.spec.rendered == "Test prompt"
+    assert outputs.spec.instructions == ["Test prompt"]
 
     serialized = outputs.model_dump_json()
     assert "Test prompt" in serialized
-    assert "1" in serialized
 
 
 async def test_multiline_template(harness: ProviderHarness) -> None:
@@ -201,8 +200,7 @@ async def test_multiline_template(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "Line 1: A\nLine 2: B"
-    assert result.outputs.instruction_count == 2
+    assert result.outputs.spec.rendered == "Line 1: A\nLine 2: B"
 
 
 async def test_empty_instructions_with_template(harness: ProviderHarness) -> None:
@@ -217,7 +215,7 @@ async def test_empty_instructions_with_template(harness: ProviderHarness) -> Non
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "Just template text"
+    assert result.outputs.spec.rendered == "Just template text"
 
 
 async def test_multiple_same_variable(harness: ProviderHarness) -> None:
@@ -231,4 +229,4 @@ async def test_multiple_same_variable(harness: ProviderHarness) -> None:
 
     assert result.success
     assert result.outputs is not None
-    assert result.outputs.text == "Assistant says hello. Remember, I am Assistant."
+    assert result.outputs.spec.rendered == "Assistant says hello. Remember, I am Assistant."
