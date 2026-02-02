@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 
 from agno.team import Team as AgnoTeam
 from pragma_sdk import Config, Dependency, Outputs
+from pydantic import field_validator
 
 from agno_provider.resources.agent import Agent, AgentOutputs, AgentSpec
 from agno_provider.resources.base import AgnoResource, AgnoSpec
@@ -100,6 +101,26 @@ class TeamConfig(Config):
     role: str | None = None
 
     members: list[Dependency[Agent]]
+
+    @field_validator("members")
+    @classmethod
+    def validate_members_not_empty(cls, v: list[Dependency[Agent]]) -> list[Dependency[Agent]]:
+        """Validate that at least one member is provided.
+
+        Args:
+            v: List of member agent dependencies.
+
+        Returns:
+            The validated members list.
+
+        Raises:
+            ValueError: If members list is empty.
+        """
+        if not v:
+            msg = "Team must have at least one member"
+            raise ValueError(msg)
+
+        return v
 
     model: Dependency[AnthropicModel] | Dependency[OpenAIModel] | None = None
 
