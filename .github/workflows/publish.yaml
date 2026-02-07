@@ -15,6 +15,7 @@ on:
 
 jobs:
   detect-changes:
+    if: "!startsWith(github.event.head_commit.message, 'bump:')"
     runs-on: ubuntu-latest
     outputs:
       gcp: ${{ steps.changes.outputs.gcp }}
