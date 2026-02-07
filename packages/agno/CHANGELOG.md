@@ -1,3 +1,14 @@
+## agno-v0.80.0 (2026-02-07)
+
+### Feat
+
+- **agno**: add knowledge and content resource support (#30)
+
+### Fix
+
+- **agno**: drop --frozen from Dockerfile uv sync (incompatible with --no-sources)
+- **ci**: prevent infinite publish loop on bump commits
+
 ## agno-v0.79.0 (2026-02-07)
 
 ### Fix
