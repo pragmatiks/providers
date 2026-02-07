@@ -1,3 +1,9 @@
+## gcp-v0.100.0 (2026-02-07)
+
+### Feat
+
+- **kubernetes**: add startup probe support and authorized_user credentials (#28)
+
 ## gcp-v0.99.0 (2026-02-05)
 
 ### Fix
