@@ -147,10 +147,16 @@ class Team(AgnoResource[TeamConfig, TeamOutputs, TeamSpec]):
         name: my-team
         config:
           members:
-            - $ref: agno/agent/researcher
-            - $ref: agno/agent/writer
+            - provider: agno
+              resource: agent
+              name: researcher
+            - provider: agno
+              resource: agent
+              name: writer
           model:
-            $ref: agno/models/anthropic/claude
+            provider: agno
+            resource: models/anthropic
+            name: claude
           delegate_to_all_members: true
           markdown: true
 
