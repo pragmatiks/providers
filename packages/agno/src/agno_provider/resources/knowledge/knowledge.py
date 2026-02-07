@@ -112,7 +112,7 @@ class Knowledge(AgnoResource[KnowledgeConfig, KnowledgeOutputs, KnowledgeSpec]):
 
         contents_db = None
         if spec.contents_db_spec:
-            db_url = spec.contents_db_spec.db_url.replace("psycopg_async", "psycopg")
+            db_url = spec.contents_db_spec.db_url.replace("postgresql+psycopg_async://", "postgresql+psycopg://", 1)
             contents_db = PostgresDb(
                 db_url=db_url,
                 db_schema=spec.contents_db_spec.db_schema,
