@@ -1,3 +1,15 @@
+## agno-v0.65.0 (2026-02-07)
+
+### Feat
+
+- **kubernetes**: add startup probe support and authorized_user credentials (#28)
+
+## agno-v0.55.0 (2026-02-05)
+
+### Fix
+
+- **agno**: runtime dependencies and import fix (#27)
+
 ## agno-v0.64.0 (2026-02-07)
 
 ### Feat
