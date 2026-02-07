@@ -27,7 +27,7 @@ def _get_access_token(credentials: dict[str, Any] | str) -> str:
     Supports both service account and authorized_user credential types.
 
     Args:
-        credentials: GCP credentials dict or JSON string.
+        credentials: GCP credentials for token acquisition.
 
     Returns:
         Bearer access token for Kubernetes API authentication.
