@@ -39,74 +39,66 @@ class ContentSpec(AgnoSpec):
     Attributes:
         name: Content name for identification.
         knowledge_spec: Nested spec for the knowledge base configuration.
-        urls: List of website, PDF, or any remote file URLs.
-        text: Raw inline text content.
+        url: Website, PDF, or any remote file URL.
+        text_content: Raw inline text content.
         description: Content description.
         metadata: Custom metadata key-value pairs.
         topics: Topic tags for categorization.
-        max_depth: Website crawl depth (URL only).
-        max_links: Maximum links to follow (URL only).
     """
 
     name: str
     knowledge_spec: KnowledgeSpec
-    urls: list[str] | None = None
-    text: str | None = None
+    url: str | None = None
+    text_content: str | None = None
     description: str | None = None
     metadata: dict[str, str] | None = None
     topics: list[str] | None = None
-    max_depth: int | None = None
-    max_links: int | None = None
 
 
 class ContentConfig(Config):
     """Configuration for a knowledge content source.
 
     Supports two mutually exclusive content types:
-    1. URLs: Website, PDF, or any remote file URLs
+    1. URL: Website, PDF, or any remote file URL
     2. Text: Raw inline text content
 
     Attributes:
         knowledge: Reference to the Knowledge resource for vectordb access.
-        urls: List of website, PDF, or any remote file URLs.
-        text: Raw inline text content.
+        url: Website, PDF, or any remote file URL.
+        text_content: Raw inline text content.
         name: Content name for identification.
         description: Content description.
         metadata: Custom metadata key-value pairs.
         topics: Topic tags for categorization.
-        max_depth: Website crawl depth (URL only).
-        max_links: Maximum links to follow (URL only).
     """
 
     knowledge: Dependency[Knowledge]
-    urls: list[str] | None = None
-    text: str | None = None
+    url: str | None = None
+    text_content: str | None = None
     name: str | None = None
     description: str | None = None
     metadata: dict[str, str] | None = None
     topics: list[str] | None = None
-    max_depth: int | None = None
-    max_links: int | None = None
 
     @model_validator(mode="after")
     def validate_content_source(self) -> ContentConfig:
-        """Validate that exactly one of urls or text is provided.
+        """Validate that exactly one of url or text_content is provided.
 
         Returns:
             Self if validation passes.
 
         Raises:
-            ValueError: If neither or both urls and text are provided.
+            ValueError: If neither or both url and text_content are provided.
         """
-        has_urls = self.urls is not None and len(self.urls) > 0
-        has_text = self.text is not None
+        has_url = self.url is not None and len(self.url) > 0
+        has_text = self.text_content is not None
 
-        if has_urls and has_text:
-            msg = "Exactly one of urls or text must be provided, not both"
+        if has_url and has_text:
+            msg = "Exactly one of url or text_content must be provided, not both"
             raise ValueError(msg)
 
-        if not has_urls and not has_text:
-            msg = "Either urls or text must be provided"
+        if not has_url and not has_text:
+            msg = "Either url or text_content must be provided"
             raise ValueError(msg)
 
         return self
@@ -180,13 +172,11 @@ class Content(AgnoResource[ContentConfig, ContentOutputs, ContentSpec]):
         return ContentSpec(
             name=self.config.name if self.config.name else self.name,
             knowledge_spec=knowledge_resource.outputs.spec,
-            urls=self.config.urls,
-            text=self.config.text,
+            url=self.config.url,
+            text_content=self.config.text_content,
             description=self.config.description,
             metadata=self.config.metadata,
             topics=self.config.topics,
-            max_depth=self.config.max_depth,
-            max_links=self.config.max_links,
         )
 
     def _build_outputs(self) -> ContentOutputs:
@@ -210,9 +200,11 @@ class Content(AgnoResource[ContentConfig, ContentOutputs, ContentSpec]):
         Returns:
             Dict of kwargs for ainsert().
         """
-        return self._build_spec().model_dump(
+        spec = self._build_spec()
+
+        return spec.model_dump(
             exclude_none=True,
-            exclude={"knowledge_spec", "name"},
+            exclude={"knowledge_spec"},
         )
 
     async def on_create(self) -> ContentOutputs:
