@@ -98,14 +98,12 @@ def create_knowledge_resource(name: str = "test-knowledge") -> Knowledge:
 def create_content(
     name: str = "test-content",
     knowledge: Knowledge | None = None,
-    urls: list[str] | None = None,
-    text: str | None = None,
+    url: str | None = None,
+    text_content: str | None = None,
     content_name: str | None = None,
     description: str | None = None,
     metadata: dict[str, str] | None = None,
     topics: list[str] | None = None,
-    max_depth: int | None = None,
-    max_links: int | None = None,
     outputs: ContentOutputs | None = None,
 ) -> Content:
     """Create a Content resource for testing."""
@@ -121,14 +119,12 @@ def create_content(
 
     config = ContentConfig(
         knowledge=knowledge_dep,
-        urls=urls,
-        text=text,
+        url=url,
+        text_content=text_content,
         name=content_name,
         description=description,
         metadata=metadata,
         topics=topics,
-        max_depth=max_depth,
-        max_links=max_links,
     )
 
     return Content(
@@ -156,59 +152,59 @@ def test_config_validation_requires_knowledge() -> None:
 
 
 def test_config_validation_requires_urls_or_text() -> None:
-    """Config requires either urls or text."""
+    """Config requires either url or text_content."""
     knowledge_dep = Dependency[Knowledge](
         provider="agno",
         resource="knowledge",
         name="test-knowledge",
     )
 
-    with pytest.raises(ValidationError, match="Either urls or text must be provided"):
+    with pytest.raises(ValidationError, match="Either url or text_content must be provided"):
         ContentConfig(knowledge=knowledge_dep)
 
 
 def test_config_validation_rejects_both_urls_and_text() -> None:
-    """Config rejects both urls and text together."""
+    """Config rejects both url and text_content together."""
     knowledge_dep = Dependency[Knowledge](
         provider="agno",
         resource="knowledge",
         name="test-knowledge",
     )
 
-    with pytest.raises(ValidationError, match="Exactly one of urls or text must be provided"):
-        ContentConfig(knowledge=knowledge_dep, urls=["https://example.com"], text="some text")
+    with pytest.raises(ValidationError, match="Exactly one of url or text_content must be provided"):
+        ContentConfig(knowledge=knowledge_dep, url="https://example.com", text_content="some text")
 
 
 def test_config_validation_accepts_urls_only() -> None:
-    """Config accepts URLs as sole content source."""
+    """Config accepts URL as sole content source."""
     knowledge_dep = Dependency[Knowledge](
         provider="agno",
         resource="knowledge",
         name="test-knowledge",
     )
 
-    config = ContentConfig(knowledge=knowledge_dep, urls=["https://example.com/docs"])
+    config = ContentConfig(knowledge=knowledge_dep, url="https://example.com/docs")
 
-    assert config.urls == ["https://example.com/docs"]
-    assert config.text is None
+    assert config.url == "https://example.com/docs"
+    assert config.text_content is None
 
 
 def test_config_validation_accepts_text_only() -> None:
-    """Config accepts text as sole content source."""
+    """Config accepts text_content as sole content source."""
     knowledge_dep = Dependency[Knowledge](
         provider="agno",
         resource="knowledge",
         name="test-knowledge",
     )
 
-    config = ContentConfig(knowledge=knowledge_dep, text="This is the content")
+    config = ContentConfig(knowledge=knowledge_dep, text_content="This is the content")
 
-    assert config.text == "This is the content"
-    assert config.urls is None
+    assert config.text_content == "This is the content"
+    assert config.url is None
 
 
 def test_config_with_urls_and_metadata() -> None:
-    """Config accepts URLs with optional metadata fields."""
+    """Config accepts URL with optional metadata fields."""
     knowledge_dep = Dependency[Knowledge](
         provider="agno",
         resource="knowledge",
@@ -217,37 +213,18 @@ def test_config_with_urls_and_metadata() -> None:
 
     config = ContentConfig(
         knowledge=knowledge_dep,
-        urls=["https://example.com/docs"],
+        url="https://example.com/docs",
         name="example-docs",
         description="Example documentation",
         metadata={"source": "web"},
         topics=["docs", "api"],
     )
 
-    assert config.urls == ["https://example.com/docs"]
+    assert config.url == "https://example.com/docs"
     assert config.name == "example-docs"
     assert config.description == "Example documentation"
     assert config.metadata == {"source": "web"}
     assert config.topics == ["docs", "api"]
-
-
-def test_config_with_website_options() -> None:
-    """Config accepts max_depth and max_links for website crawling."""
-    knowledge_dep = Dependency[Knowledge](
-        provider="agno",
-        resource="knowledge",
-        name="test-knowledge",
-    )
-
-    config = ContentConfig(
-        knowledge=knowledge_dep,
-        urls=["https://example.com"],
-        max_depth=3,
-        max_links=100,
-    )
-
-    assert config.max_depth == 3
-    assert config.max_links == 100
 
 
 def test_outputs_contain_expected_fields() -> None:
@@ -265,13 +242,13 @@ def test_outputs_contain_expected_fields() -> None:
         spec=ContentSpec(
             name="test-content",
             knowledge_spec=knowledge_spec,
-            urls=["https://example.com"],
+            url="https://example.com",
         ),
         pip_dependencies=READER_DEPENDENCIES,
     )
 
     assert outputs.spec.name == "test-content"
-    assert outputs.spec.urls == ["https://example.com"]
+    assert outputs.spec.url == "https://example.com"
     assert outputs.pip_dependencies == READER_DEPENDENCIES
 
 
@@ -290,7 +267,7 @@ def test_outputs_are_serializable() -> None:
         spec=ContentSpec(
             name="test-content",
             knowledge_spec=knowledge_spec,
-            text="Some text content",
+            text_content="Some text content",
         ),
         pip_dependencies=READER_DEPENDENCIES,
     )
@@ -316,18 +293,14 @@ def test_spec_model_dump_for_ainsert() -> None:
     spec = ContentSpec(
         name="test",
         knowledge_spec=knowledge_spec,
-        urls=["https://example.com"],
-        max_depth=5,
-        max_links=200,
+        url="https://example.com",
     )
 
-    kwargs = spec.model_dump(exclude_none=True, exclude={"knowledge_spec", "name"})
+    kwargs = spec.model_dump(exclude_none=True, exclude={"knowledge_spec"})
 
-    assert kwargs["urls"] == ["https://example.com"]
-    assert kwargs["max_depth"] == 5
-    assert kwargs["max_links"] == 200
+    assert kwargs["url"] == "https://example.com"
+    assert kwargs["name"] == "test"
     assert "knowledge_spec" not in kwargs
-    assert "name" not in kwargs
 
 
 def test_spec_model_dump_excludes_none_fields() -> None:
@@ -344,17 +317,15 @@ def test_spec_model_dump_excludes_none_fields() -> None:
     spec = ContentSpec(
         name="test",
         knowledge_spec=knowledge_spec,
-        urls=["https://example.com"],
+        url="https://example.com",
     )
 
-    kwargs = spec.model_dump(exclude_none=True, exclude={"knowledge_spec", "name"})
+    kwargs = spec.model_dump(exclude_none=True, exclude={"knowledge_spec"})
 
-    assert "urls" in kwargs
+    assert "url" in kwargs
     assert "description" not in kwargs
     assert "metadata" not in kwargs
     assert "topics" not in kwargs
-    assert "max_depth" not in kwargs
-    assert "max_links" not in kwargs
 
 
 def test_reader_dependencies_defined() -> None:
@@ -369,7 +340,7 @@ async def test_lifecycle_on_create_with_urls(mocker: MockerFixture) -> None:
     """on_create returns outputs and inserts content into vectordb."""
     resource = create_content(
         name="docs-content",
-        urls=["https://example.com/docs"],
+        url="https://example.com/docs",
     )
 
     mocker.patch("pragma_sdk.Dependency.resolve", return_value=None)
@@ -385,19 +356,19 @@ async def test_lifecycle_on_create_with_urls(mocker: MockerFixture) -> None:
 
     assert isinstance(result, ContentOutputs)
     assert result.spec.name == "docs-content"
-    assert result.spec.urls == ["https://example.com/docs"]
+    assert result.spec.url == "https://example.com/docs"
     assert result.pip_dependencies == READER_DEPENDENCIES
 
     mock_knowledge.ainsert.assert_called_once()
     call_kwargs = mock_knowledge.ainsert.call_args.kwargs
-    assert call_kwargs["urls"] == ["https://example.com/docs"]
+    assert call_kwargs["url"] == "https://example.com/docs"
 
 
 async def test_lifecycle_on_create_with_text(mocker: MockerFixture) -> None:
     """on_create returns outputs for text content."""
     resource = create_content(
         name="text-content",
-        text="This is inline text",
+        text_content="This is inline text",
     )
 
     mocker.patch("pragma_sdk.Dependency.resolve", return_value=None)
@@ -413,18 +384,18 @@ async def test_lifecycle_on_create_with_text(mocker: MockerFixture) -> None:
 
     assert isinstance(result, ContentOutputs)
     assert result.spec.name == "text-content"
-    assert result.spec.text == "This is inline text"
+    assert result.spec.text_content == "This is inline text"
 
     mock_knowledge.ainsert.assert_called_once()
     call_kwargs = mock_knowledge.ainsert.call_args.kwargs
-    assert call_kwargs["text"] == "This is inline text"
+    assert call_kwargs["text_content"] == "This is inline text"
 
 
 async def test_lifecycle_on_update_returns_outputs(mocker: MockerFixture) -> None:
     """on_update returns updated outputs with upsert."""
     resource = create_content(
         name="updated-content",
-        urls=["https://new-example.com"],
+        url="https://new-example.com",
     )
 
     mocker.patch("pragma_sdk.Dependency.resolve", return_value=None)
@@ -441,23 +412,23 @@ async def test_lifecycle_on_update_returns_outputs(mocker: MockerFixture) -> Non
         resource="knowledge",
         name="test-knowledge",
     )
-    previous_config = ContentConfig(knowledge=knowledge_dep, urls=["https://old-example.com"])
+    previous_config = ContentConfig(knowledge=knowledge_dep, url="https://old-example.com")
 
     result = await resource.on_update(previous_config)
 
     assert isinstance(result, ContentOutputs)
     assert result.spec.name == "updated-content"
-    assert result.spec.urls == ["https://new-example.com"]
+    assert result.spec.url == "https://new-example.com"
 
     mock_knowledge.ainsert.assert_called_once()
     call_kwargs = mock_knowledge.ainsert.call_args.kwargs
-    assert call_kwargs["urls"] == ["https://new-example.com"]
+    assert call_kwargs["url"] == "https://new-example.com"
     assert call_kwargs["upsert"] is True
 
 
 async def test_lifecycle_on_delete_removes_vectors(mocker: MockerFixture) -> None:
     """on_delete removes content from vectordb by name."""
-    resource = create_content(name="content-to-delete", urls=["https://example.com"])
+    resource = create_content(name="content-to-delete", url="https://example.com")
 
     mocker.patch("pragma_sdk.Dependency.resolve", return_value=None)
 
@@ -478,7 +449,7 @@ async def test_lifecycle_on_delete_uses_config_name(mocker: MockerFixture) -> No
     resource = create_content(
         name="resource-name",
         content_name="custom-content-name",
-        urls=["https://example.com"],
+        url="https://example.com",
     )
 
     mocker.patch("pragma_sdk.Dependency.resolve", return_value=None)
@@ -515,14 +486,14 @@ async def test_harness_create_with_urls(harness: ProviderHarness, mocker: Mocker
         return_value=mock_knowledge,
     )
 
-    config = ContentConfig(knowledge=knowledge_dep, urls=["https://example.com/docs"])
+    config = ContentConfig(knowledge=knowledge_dep, url="https://example.com/docs")
 
     result = await harness.invoke_create(Content, name="test-content", config=config)
 
     assert result.success
     assert result.outputs is not None
     assert result.outputs.spec.name == "test-content"
-    assert result.outputs.spec.urls == ["https://example.com/docs"]
+    assert result.outputs.spec.url == "https://example.com/docs"
 
 
 async def test_harness_create_with_text(harness: ProviderHarness, mocker: MockerFixture) -> None:
@@ -545,14 +516,14 @@ async def test_harness_create_with_text(harness: ProviderHarness, mocker: Mocker
         return_value=mock_knowledge,
     )
 
-    config = ContentConfig(knowledge=knowledge_dep, text="Inline content here")
+    config = ContentConfig(knowledge=knowledge_dep, text_content="Inline content here")
 
     result = await harness.invoke_create(Content, name="text-content", config=config)
 
     assert result.success
     assert result.outputs is not None
     assert result.outputs.spec.name == "text-content"
-    assert result.outputs.spec.text == "Inline content here"
+    assert result.outputs.spec.text_content == "Inline content here"
 
 
 async def test_harness_update_returns_outputs(harness: ProviderHarness, mocker: MockerFixture) -> None:
@@ -576,13 +547,13 @@ async def test_harness_update_returns_outputs(harness: ProviderHarness, mocker: 
         return_value=mock_knowledge,
     )
 
-    previous = ContentConfig(knowledge=knowledge_dep, urls=["https://old.example.com"])
-    current = ContentConfig(knowledge=knowledge_dep, urls=["https://new.example.com"])
+    previous = ContentConfig(knowledge=knowledge_dep, url="https://old.example.com")
+    current = ContentConfig(knowledge=knowledge_dep, url="https://new.example.com")
     current_outputs = ContentOutputs(
         spec=ContentSpec(
             name="test-content",
             knowledge_spec=knowledge_spec,
-            urls=["https://old.example.com"],
+            url="https://old.example.com",
         ),
         pip_dependencies=READER_DEPENDENCIES,
     )
@@ -598,7 +569,7 @@ async def test_harness_update_returns_outputs(harness: ProviderHarness, mocker: 
     assert result.success
     assert result.outputs is not None
     assert result.outputs.spec.name == "test-content"
-    assert result.outputs.spec.urls == ["https://new.example.com"]
+    assert result.outputs.spec.url == "https://new.example.com"
 
 
 async def test_harness_delete_success(harness: ProviderHarness, mocker: MockerFixture) -> None:
@@ -621,7 +592,7 @@ async def test_harness_delete_success(harness: ProviderHarness, mocker: MockerFi
         return_value=mock_knowledge,
     )
 
-    config = ContentConfig(knowledge=knowledge_dep, urls=["https://example.com"])
+    config = ContentConfig(knowledge=knowledge_dep, url="https://example.com")
 
     result = await harness.invoke_delete(Content, name="test-content", config=config)
 
