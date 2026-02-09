@@ -410,11 +410,9 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
         """
         kubernetes_deployment = self._build_kubernetes_deployment(spec_type, spec)
         await kubernetes_deployment.apply()
-        await kubernetes_deployment.wait_ready(timeout=30.0)
 
         kubernetes_service = self._build_kubernetes_service()
         await kubernetes_service.apply()
-        await kubernetes_service.wait_ready(timeout=60.0)
 
     async def _kubernetes_deployment(self) -> KubernetesDeployment:
         """Get kubernetes deployment resource for current spec.
@@ -426,7 +424,7 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
         return self._build_kubernetes_deployment(spec_type, spec)
 
     async def on_create(self) -> RunnerOutputs:
-        """Create Kubernetes Deployment + Service and wait for ready.
+        """Create Kubernetes Deployment + Service.
 
         Returns:
             RunnerOutputs with runner details.
@@ -437,7 +435,7 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
         return self._build_outputs(spec, ready=True)
 
     async def on_update(self, previous_config: RunnerConfig) -> RunnerOutputs:
-        """Update Kubernetes Deployment + Service and wait for ready.
+        """Update Kubernetes Deployment + Service.
 
         Args:
             previous_config: The previous configuration before update.
