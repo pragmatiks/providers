@@ -1,0 +1,79 @@
+language: "en-US"
+early_access: true
+tone_instructions: "Provider implementations. Focus on correct resource lifecycle handling, idempotency, and error resilience."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  commit_status: true
+  fail_commit_status: false
+  sequence_diagrams: false
+  poem: false
+  in_progress_fortune: false
+  suggested_labels: true
+  suggested_reviewers: false
+  related_issues: true
+  related_prs: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+
+  path_filters:
+    - "!templates/**"
+    - "!scripts/**"
+    - "!**/*.lock"
+
+  path_instructions:
+    - path: "packages/gcp/**"
+      instructions: |
+        GCP provider. Watch for:
+        - Correct GCP API usage and error handling
+        - Resource cleanup on delete (no orphaned cloud resources)
+        - Idempotent create/update operations
+        - Credential handling (no hardcoded secrets)
+    - path: "packages/kubernetes/**"
+      instructions: |
+        Kubernetes provider. Watch for:
+        - Correct K8s API usage (client-go patterns)
+        - Namespace isolation
+        - Resource cleanup on delete
+    - path: "packages/agno/**"
+      instructions: |
+        Agno agent provider. Watch for:
+        - AgentOS authentication handling (JWT vs Bearer)
+        - Runner image build correctness
+        - Agent lifecycle management
+    - path: "packages/qdrant/**"
+      instructions: |
+        Qdrant vector DB provider. Watch for:
+        - Collection management correctness
+        - Index configuration validation
+
+  tools:
+    ruff:
+      enabled: true
+    semgrep:
+      enabled: true
+
+chat:
+  auto_reply: true
+  integrations:
+    linear:
+      usage: "auto"
+
+knowledge_base:
+  learnings:
+    scope: "auto"
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"
+  linear:
+    usage: "auto"
