@@ -10,6 +10,27 @@ All notable changes to this project will be documented in this file.
 - Collection resource with create, update, delete lifecycle
 - Support for Qdrant Cloud and local instances
 
+## qdrant-v0.15.0 (2026-02-23)
+
+### Feat
+
+- **agno**: add knowledge and content resource support (#30)
+- **agno**: add team resource, runner auth, model discriminators, and memory config (#29)
+- **kubernetes**: add startup probe support and authorized_user credentials (#28)
+- **agno**: rebuild agent, add team and deployment resources (#24)
+
+### Fix
+
+- **gcp**: handle CloudSQL 400 error when deleting non-existent user
+- **agno**: remove wait_ready calls from runner resource application
+- **gcp**: handle HTTP 400 for already-existing CloudSQL databases
+- **agno**: drop --frozen from Dockerfile uv sync (incompatible with --no-sources)
+- **ci**: prevent infinite publish loop on bump commits
+- **agno**: runtime dependencies and import fix (#27)
+- **agno**: rewrite agent tests for current AgentConfig implementation
+- **gcp**: convert db_port to int in CloudSQL database outputs
+- **ci**: use PyPI API for availability check instead of pip index
+
 ## qdrant-v0.14.0 (2026-02-09)
 
 ### Feat
