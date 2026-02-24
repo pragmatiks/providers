@@ -26,6 +26,10 @@ display_name:
   type: str
   help: Display name for the provider store (e.g., 'PostgreSQL', 'Google Cloud')
   default: "{{ name | title | replace('-', ' ') }}"
+  validator: >-
+    {% if not display_name %}
+    Display name is required
+    {% endif %}
 
 author_name:
   type: str
