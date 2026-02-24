@@ -22,6 +22,15 @@ description:
   help: Short description of your provider
   default: "{{ name }} provider for Pragmatiks"
 
+display_name:
+  type: str
+  help: Display name for the provider store (e.g., 'PostgreSQL', 'Google Cloud')
+  default: "{{ name | title | replace('-', ' ') }}"
+  validator: >-
+    {% if not display_name or not display_name | trim %}
+    Display name is required
+    {% endif %}
+
 author_name:
   type: str
   help: Author name
