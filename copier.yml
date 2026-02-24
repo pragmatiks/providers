@@ -27,7 +27,7 @@ display_name:
   help: Display name for the provider store (e.g., 'PostgreSQL', 'Google Cloud')
   default: "{{ name | title | replace('-', ' ') }}"
   validator: >-
-    {% if not display_name %}
+    {% if not display_name or not display_name.strip() %}
     Display name is required
     {% endif %}
 
