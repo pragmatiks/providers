@@ -1,3 +1,19 @@
+## gcp-v0.132.0 (2026-02-24)
+
+### Feat
+
+- add store metadata fields to provider copier template (PRA-193) (#32)
+- **agno**: add knowledge and content resource support (#30)
+- **agno**: add team resource, runner auth, model discriminators, and memory config (#29)
+
+### Fix
+
+- **gcp**: handle CloudSQL 400 error when deleting non-existent user
+- **agno**: remove wait_ready calls from runner resource application
+- **gcp**: handle HTTP 400 for already-existing CloudSQL databases
+- **agno**: drop --frozen from Dockerfile uv sync (incompatible with --no-sources)
+- **ci**: prevent infinite publish loop on bump commits
+
 ## gcp-v0.131.0 (2026-02-23)
 
 ### Feat
