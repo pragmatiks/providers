@@ -200,7 +200,7 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
     ) -> AsyncIterator[LogEntry]:
         """Namespaces do not produce logs.
 
-        This method exists for interface compatibility but yields nothing.
+        This method exists for interface compatibility and yields a single informational entry.
 
         Args:
             since: Ignored for namespaces.
