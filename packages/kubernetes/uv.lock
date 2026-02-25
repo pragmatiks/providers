@@ -626,7 +626,7 @@ wheels = [
 
 [[package]]
 name = "pragmatiks-kubernetes-provider"
-version = "0.100.0"
+version = "0.143.0"
 source = { editable = "." }
 dependencies = [
     { name = "google-auth" },
