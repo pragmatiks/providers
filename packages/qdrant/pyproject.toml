@@ -27,6 +27,9 @@ dev = [
 # Provider metadata - used by the platform for discovery and deployment
 provider = "qdrant"
 package = "qdrant_provider"
+display_name = "Qdrant Vector Database"
+description = "Provision and manage Qdrant vector database instances and collections for similarity search and AI applications."
+tags = ["vector-database", "search", "ai", "embeddings"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

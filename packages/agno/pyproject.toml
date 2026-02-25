@@ -32,6 +32,9 @@ dev = [
 [tool.pragma]
 provider = "agno"
 package = "agno_provider"
+display_name = "Agno AI Agents"
+description = "Build and deploy AI agents, teams, and knowledge bases with models from OpenAI and Anthropic, MCP tools, and vector storage."
+tags = ["ai", "agents", "llm", "openai", "anthropic", "knowledge-base"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

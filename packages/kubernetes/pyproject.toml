@@ -29,6 +29,9 @@ dev = [
 # Provider metadata - used by the platform for discovery and deployment
 provider = "kubernetes"
 package = "kubernetes_provider"
+display_name = "Kubernetes"
+description = "Deploy and manage Kubernetes resources including deployments, services, configmaps, secrets, and statefulsets."
+tags = ["kubernetes", "orchestration", "containers", "infrastructure"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
