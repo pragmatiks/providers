@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import ClassVar
 
@@ -65,10 +66,11 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
     provider: ClassVar[str] = "kubernetes"
     resource: ClassVar[str] = "secret"
 
+    @asynccontextmanager
     async def _get_client(self):
         """Get lightkube client from GKE cluster credentials.
 
-        Returns:
+        Yields:
             Lightkube async client configured for the GKE cluster.
 
         Raises:
@@ -82,8 +84,12 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
             raise RuntimeError(msg)
 
         creds = cluster.config.credentials
+        client = create_client_from_gke(outputs, creds)
 
-        return create_client_from_gke(outputs, creds)
+        try:
+            yield client
+        finally:
+            await client.close()
 
     def _encode_data(self, data: dict[str, str]) -> dict[str, str]:
         """Base64 encode data values.
@@ -147,12 +153,12 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         Returns:
             SecretOutputs with secret details.
         """
-        client = await self._get_client()
-        secret = self._build_secret()
+        async with self._get_client() as client:
+            secret = self._build_secret()
 
-        await client.apply(secret, field_manager="pragma-kubernetes")
+            await client.apply(secret, field_manager="pragma-kubernetes")
 
-        return self._build_outputs()
+            return self._build_outputs()
 
     async def on_update(self, previous_config: SecretConfig) -> SecretOutputs:
         """Update Kubernetes Secret.
@@ -174,12 +180,12 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
             msg = "Cannot change namespace; delete and recreate resource"
             raise ValueError(msg)
 
-        client = await self._get_client()
-        secret = self._build_secret()
+        async with self._get_client() as client:
+            secret = self._build_secret()
 
-        await client.apply(secret, field_manager="pragma-kubernetes")
+            await client.apply(secret, field_manager="pragma-kubernetes")
 
-        return self._build_outputs()
+            return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete Kubernetes Secret.
@@ -189,17 +195,16 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         Raises:
             ApiError: If deletion fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            await client.delete(
-                K8sSecret,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-        except ApiError as e:
-            if e.status.code != 404:
-                raise
+        async with self._get_client() as client:
+            try:
+                await client.delete(
+                    K8sSecret,
+                    name=self.name,
+                    namespace=self.config.namespace,
+                )
+            except ApiError as e:
+                if e.status.code != 404:
+                    raise
 
     async def health(self) -> HealthStatus:
         """Check Secret health by verifying it exists.
@@ -210,30 +215,29 @@ class Secret(Resource[SecretConfig, SecretOutputs]):
         Raises:
             ApiError: If health check fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            secret = await client.get(
-                K8sSecret,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-
-            key_count = len(secret.data) if secret.data else 0
-
-            return HealthStatus(
-                status="healthy",
-                message=f"Secret exists with {key_count} key(s)",
-                details={"key_count": key_count, "type": secret.type},
-            )
-
-        except ApiError as e:
-            if e.status.code == 404:
-                return HealthStatus(
-                    status="unhealthy",
-                    message="Secret not found",
+        async with self._get_client() as client:
+            try:
+                secret = await client.get(
+                    K8sSecret,
+                    name=self.name,
+                    namespace=self.config.namespace,
                 )
-            raise
+
+                key_count = len(secret.data) if secret.data else 0
+
+                return HealthStatus(
+                    status="healthy",
+                    message=f"Secret exists with {key_count} key(s)",
+                    details={"key_count": key_count, "type": secret.type},
+                )
+
+            except ApiError as e:
+                if e.status.code == 404:
+                    return HealthStatus(
+                        status="unhealthy",
+                        message="Secret not found",
+                    )
+                raise
 
     async def logs(
         self,

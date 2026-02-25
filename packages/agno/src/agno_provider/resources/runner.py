@@ -215,7 +215,9 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
             msg = "Namespace dependency outputs not available"
             raise RuntimeError(msg)
 
-        assert isinstance(ns.outputs, NamespaceOutputs)
+        if not isinstance(ns.outputs, NamespaceOutputs):
+            msg = f"Expected NamespaceOutputs, got {type(ns.outputs).__name__}"
+            raise RuntimeError(msg)
 
         return ns.outputs.name
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import ClassVar
 
@@ -54,10 +55,11 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
     provider: ClassVar[str] = "kubernetes"
     resource: ClassVar[str] = "namespace"
 
+    @asynccontextmanager
     async def _get_client(self):
         """Get lightkube client from GKE cluster credentials.
 
-        Returns:
+        Yields:
             Lightkube async client configured for the GKE cluster.
 
         Raises:
@@ -71,8 +73,12 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
             raise RuntimeError(msg)
 
         creds = cluster.config.credentials
+        client = create_client_from_gke(outputs, creds)
 
-        return create_client_from_gke(outputs, creds)
+        try:
+            yield client
+        finally:
+            await client.close()
 
     def _build_namespace(self) -> K8sNamespace:
         """Build Kubernetes Namespace object from config.
@@ -103,12 +109,12 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
         Returns:
             NamespaceOutputs with namespace name.
         """
-        client = await self._get_client()
-        namespace = self._build_namespace()
+        async with self._get_client() as client:
+            namespace = self._build_namespace()
 
-        await client.apply(namespace, field_manager="pragma-kubernetes")
+            await client.apply(namespace, field_manager="pragma-kubernetes")
 
-        return self._build_outputs()
+            return self._build_outputs()
 
     async def on_update(self, previous_config: NamespaceConfig) -> NamespaceOutputs:
         """Update Kubernetes Namespace.
@@ -126,12 +132,12 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
             msg = "Cannot change cluster; delete and recreate resource"
             raise ValueError(msg)
 
-        client = await self._get_client()
-        namespace = self._build_namespace()
+        async with self._get_client() as client:
+            namespace = self._build_namespace()
 
-        await client.apply(namespace, field_manager="pragma-kubernetes")
+            await client.apply(namespace, field_manager="pragma-kubernetes")
 
-        return self._build_outputs()
+            return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete Kubernetes Namespace.
@@ -141,13 +147,12 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
         Raises:
             ApiError: If deletion fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            await client.delete(K8sNamespace, name=self.name)
-        except ApiError as e:
-            if e.status.code != 404:
-                raise
+        async with self._get_client() as client:
+            try:
+                await client.delete(K8sNamespace, name=self.name)
+            except ApiError as e:
+                if e.status.code != 404:
+                    raise
 
     async def health(self) -> HealthStatus:
         """Check Namespace health by verifying it exists and is active.
@@ -158,36 +163,35 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
         Raises:
             ApiError: If health check fails for reasons other than not found.
         """
-        client = await self._get_client()
+        async with self._get_client() as client:
+            try:
+                ns = await client.get(K8sNamespace, name=self.name)
 
-        try:
-            ns = await client.get(K8sNamespace, name=self.name)
+                phase = None
 
-            phase = None
+                if ns.status and ns.status.phase:
+                    phase = ns.status.phase
 
-            if ns.status and ns.status.phase:
-                phase = ns.status.phase
+                if phase == "Active":
+                    return HealthStatus(
+                        status="healthy",
+                        message=f"Namespace {self.name} is active",
+                        details={"phase": phase},
+                    )
 
-            if phase == "Active":
                 return HealthStatus(
-                    status="healthy",
-                    message=f"Namespace {self.name} is active",
+                    status="degraded",
+                    message=f"Namespace {self.name} phase: {phase}",
                     details={"phase": phase},
                 )
 
-            return HealthStatus(
-                status="degraded",
-                message=f"Namespace {self.name} phase: {phase}",
-                details={"phase": phase},
-            )
-
-        except ApiError as e:
-            if e.status.code == 404:
-                return HealthStatus(
-                    status="unhealthy",
-                    message="Namespace not found",
-                )
-            raise
+            except ApiError as e:
+                if e.status.code == 404:
+                    return HealthStatus(
+                        status="unhealthy",
+                        message="Namespace not found",
+                    )
+                raise
 
     async def logs(
         self,
@@ -203,7 +207,7 @@ class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
             tail: Ignored for namespaces.
 
         Yields:
-            Nothing - namespaces don't have logs.
+            A single informational LogEntry indicating that namespaces do not produce logs.
         """
         yield LogEntry(
             timestamp=datetime.now(UTC),

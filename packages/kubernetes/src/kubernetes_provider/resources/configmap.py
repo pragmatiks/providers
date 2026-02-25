@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import ClassVar
 
@@ -57,10 +58,11 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
     provider: ClassVar[str] = "kubernetes"
     resource: ClassVar[str] = "configmap"
 
+    @asynccontextmanager
     async def _get_client(self):
         """Get lightkube client from GKE cluster credentials.
 
-        Returns:
+        Yields:
             Lightkube async client configured for the GKE cluster.
 
         Raises:
@@ -74,8 +76,12 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
             raise RuntimeError(msg)
 
         creds = cluster.config.credentials
+        client = create_client_from_gke(outputs, creds)
 
-        return create_client_from_gke(outputs, creds)
+        try:
+            yield client
+        finally:
+            await client.close()
 
     def _build_configmap(self) -> K8sConfigMap:
         """Build Kubernetes ConfigMap object from config.
@@ -111,12 +117,12 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
         Returns:
             ConfigMapOutputs with configmap details.
         """
-        client = await self._get_client()
-        configmap = self._build_configmap()
+        async with self._get_client() as client:
+            configmap = self._build_configmap()
 
-        await client.apply(configmap, field_manager="pragma-kubernetes")
+            await client.apply(configmap, field_manager="pragma-kubernetes")
 
-        return self._build_outputs()
+            return self._build_outputs()
 
     async def on_update(self, previous_config: ConfigMapConfig) -> ConfigMapOutputs:
         """Update Kubernetes ConfigMap.
@@ -138,12 +144,12 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
             msg = "Cannot change namespace; delete and recreate resource"
             raise ValueError(msg)
 
-        client = await self._get_client()
-        configmap = self._build_configmap()
+        async with self._get_client() as client:
+            configmap = self._build_configmap()
 
-        await client.apply(configmap, field_manager="pragma-kubernetes")
+            await client.apply(configmap, field_manager="pragma-kubernetes")
 
-        return self._build_outputs()
+            return self._build_outputs()
 
     async def on_delete(self) -> None:
         """Delete Kubernetes ConfigMap.
@@ -153,17 +159,16 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
         Raises:
             ApiError: If deletion fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            await client.delete(
-                K8sConfigMap,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-        except ApiError as e:
-            if e.status.code != 404:
-                raise
+        async with self._get_client() as client:
+            try:
+                await client.delete(
+                    K8sConfigMap,
+                    name=self.name,
+                    namespace=self.config.namespace,
+                )
+            except ApiError as e:
+                if e.status.code != 404:
+                    raise
 
     async def health(self) -> HealthStatus:
         """Check ConfigMap health by verifying it exists.
@@ -174,30 +179,29 @@ class ConfigMap(Resource[ConfigMapConfig, ConfigMapOutputs]):
         Raises:
             ApiError: If health check fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            configmap = await client.get(
-                K8sConfigMap,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-
-            key_count = len(configmap.data) if configmap.data else 0
-
-            return HealthStatus(
-                status="healthy",
-                message=f"ConfigMap exists with {key_count} key(s)",
-                details={"key_count": key_count},
-            )
-
-        except ApiError as e:
-            if e.status.code == 404:
-                return HealthStatus(
-                    status="unhealthy",
-                    message="ConfigMap not found",
+        async with self._get_client() as client:
+            try:
+                configmap = await client.get(
+                    K8sConfigMap,
+                    name=self.name,
+                    namespace=self.config.namespace,
                 )
-            raise
+
+                key_count = len(configmap.data) if configmap.data else 0
+
+                return HealthStatus(
+                    status="healthy",
+                    message=f"ConfigMap exists with {key_count} key(s)",
+                    details={"key_count": key_count},
+                )
+
+            except ApiError as e:
+                if e.status.code == 404:
+                    return HealthStatus(
+                        status="unhealthy",
+                        message="ConfigMap not found",
+                    )
+                raise
 
     async def logs(
         self,
