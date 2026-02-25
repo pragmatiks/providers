@@ -14,6 +14,8 @@ from kubernetes_provider import (
     DeploymentConfig as KubernetesDeploymentConfig,
 )
 from kubernetes_provider import (
+    Namespace,
+    NamespaceOutputs,
     Service,
     ServiceConfig,
 )
@@ -70,7 +72,7 @@ class RunnerConfig(Config):
         agent: Agent dependency to deploy.
         team: Team dependency to deploy.
         cluster: GKE cluster dependency providing Kubernetes credentials.
-        namespace: Kubernetes namespace for runner.
+        namespace: Kubernetes namespace dependency for runner.
         replicas: Number of pod replicas.
         image: Container image for running the agent/team.
         cpu: CPU resource limit.
@@ -81,8 +83,7 @@ class RunnerConfig(Config):
     team: Dependency[Team] | None = None
 
     cluster: Dependency[GKE]
-
-    namespace: str = "default"
+    namespace: Dependency[Namespace]
     replicas: int = 1
     image: str = "ghcr.io/pragmatiks/agno-runner:latest"
     security_key: str | None = None
@@ -156,7 +157,10 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
             provider: gcp
             resource: gke
             name: my-cluster
-          namespace: agents
+          namespace:
+            provider: kubernetes
+            resource: namespace
+            name: agents
           replicas: 2
           security_key: "key-from-agentos-control-plane"
 
@@ -196,6 +200,25 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
             "agno.ai/managed-by": "pragma",
         }
 
+    async def _resolve_namespace_name(self) -> str:
+        """Resolve the namespace dependency and return the namespace name.
+
+        Returns:
+            Namespace name string from the resolved dependency.
+
+        Raises:
+            RuntimeError: If namespace dependency outputs are not available.
+        """
+        ns = await self.config.namespace.resolve()
+
+        if ns.outputs is None:
+            msg = "Namespace dependency outputs not available"
+            raise RuntimeError(msg)
+
+        assert isinstance(ns.outputs, NamespaceOutputs)
+
+        return ns.outputs.name
+
     async def _get_spec_info(self) -> tuple[Literal["agent", "team"], AgentSpec | TeamSpec]:
         """Get spec type and spec from resolved dependency.
 
@@ -230,12 +253,14 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
 
     def _build_kubernetes_deployment(
         self,
+        namespace_name: str,
         spec_type: Literal["agent", "team"],
         spec: AgentSpec | TeamSpec,
     ) -> KubernetesDeployment:
         """Build kubernetes/deployment child resource.
 
         Args:
+            namespace_name: Resolved namespace name string.
             spec_type: Type of spec ("agent" or "team").
             spec: The agent or team spec to deploy.
 
@@ -289,7 +314,7 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
 
         config = KubernetesDeploymentConfig(
             cluster=self.config.cluster,
-            namespace=self.config.namespace,
+            namespace=namespace_name,
             replicas=self.config.replicas,
             selector=labels,
             labels=labels,
@@ -302,10 +327,13 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
             config=config,
         )
 
-    def _build_kubernetes_service(self) -> Service:
+    def _build_kubernetes_service(self, namespace_name: str) -> Service:
         """Build kubernetes/service child resource.
 
         Uses LoadBalancer when public is true, ClusterIP otherwise.
+
+        Args:
+            namespace_name: Resolved namespace name string.
 
         Returns:
             Kubernetes Service resource ready to apply.
@@ -315,7 +343,7 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
 
         config = ServiceConfig(
             cluster=self.config.cluster,
-            namespace=self.config.namespace,
+            namespace=namespace_name,
             type=service_type,
             selector=labels,
             ports=[
@@ -328,11 +356,14 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
             config=config,
         )
 
-    def _build_kubernetes_deployment_for_delete(self) -> KubernetesDeployment:
+    def _build_kubernetes_deployment_for_delete(self, namespace_name: str) -> KubernetesDeployment:
         """Build minimal kubernetes/deployment for deletion.
 
         Creates a deployment resource with just enough config to call on_delete().
         The actual container/selector config doesn't matter for deletion.
+
+        Args:
+            namespace_name: Resolved namespace name string.
 
         Returns:
             Kubernetes Deployment resource for deletion.
@@ -346,7 +377,7 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
 
         config = KubernetesDeploymentConfig(
             cluster=self.config.cluster,
-            namespace=self.config.namespace,
+            namespace=namespace_name,
             replicas=1,
             selector=labels,
             containers=[container],
@@ -357,22 +388,27 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
             config=config,
         )
 
-    def _build_service_url(self) -> str:
+    def _build_service_url(self, namespace_name: str) -> str:
         """Build in-cluster service URL.
+
+        Args:
+            namespace_name: Resolved namespace name string.
 
         Returns:
             In-cluster DNS URL for the service.
         """
-        return f"http://{self._service_name()}.{self.config.namespace}.svc.cluster.local"
+        return f"http://{self._service_name()}.{namespace_name}.svc.cluster.local"
 
     def _build_outputs(
         self,
+        namespace_name: str,
         spec: AgentSpec | TeamSpec,
         ready: bool,
     ) -> RunnerOutputs:
         """Build runner outputs.
 
         Args:
+            namespace_name: Resolved namespace name string.
             spec: The agent or team spec deployed.
             ready: Whether runner is ready.
 
@@ -381,7 +417,7 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
         """
         runner_spec = RunnerSpec(
             name=self._runner_name(),
-            namespace=self.config.namespace,
+            namespace=namespace_name,
             agent_spec=spec if isinstance(spec, AgentSpec) else None,
             team_spec=spec if isinstance(spec, TeamSpec) else None,
             replicas=self.config.replicas,
@@ -393,25 +429,27 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
 
         return RunnerOutputs(
             spec=runner_spec,
-            url=self._build_service_url(),
+            url=self._build_service_url(namespace_name),
             ready=ready,
         )
 
     async def _apply_kubernetes_resources(
         self,
+        namespace_name: str,
         spec_type: Literal["agent", "team"],
         spec: AgentSpec | TeamSpec,
     ) -> None:
         """Apply kubernetes deployment and service as child resources.
 
         Args:
+            namespace_name: Resolved namespace name string.
             spec_type: Type of spec ("agent" or "team").
             spec: The agent or team spec to deploy.
         """
-        kubernetes_deployment = self._build_kubernetes_deployment(spec_type, spec)
+        kubernetes_deployment = self._build_kubernetes_deployment(namespace_name, spec_type, spec)
         await kubernetes_deployment.apply()
 
-        kubernetes_service = self._build_kubernetes_service()
+        kubernetes_service = self._build_kubernetes_service(namespace_name)
         await kubernetes_service.apply()
 
     async def _kubernetes_deployment(self) -> KubernetesDeployment:
@@ -420,8 +458,10 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
         Returns:
             Kubernetes Deployment resource configured for current agent/team.
         """
+        namespace_name = await self._resolve_namespace_name()
         spec_type, spec = await self._get_spec_info()
-        return self._build_kubernetes_deployment(spec_type, spec)
+
+        return self._build_kubernetes_deployment(namespace_name, spec_type, spec)
 
     async def on_create(self) -> RunnerOutputs:
         """Create Kubernetes Deployment + Service.
@@ -429,10 +469,12 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
         Returns:
             RunnerOutputs with runner details.
         """
+        namespace_name = await self._resolve_namespace_name()
         spec_type, spec = await self._get_spec_info()
-        await self._apply_kubernetes_resources(spec_type, spec)
 
-        return self._build_outputs(spec, ready=True)
+        await self._apply_kubernetes_resources(namespace_name, spec_type, spec)
+
+        return self._build_outputs(namespace_name, spec, ready=True)
 
     async def on_update(self, previous_config: RunnerConfig) -> RunnerOutputs:
         """Update Kubernetes Deployment + Service.
@@ -450,14 +492,16 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
             msg = "Cannot change cluster; delete and recreate resource"
             raise ValueError(msg)
 
-        if previous_config.namespace != self.config.namespace:
+        if previous_config.namespace.id != self.config.namespace.id:
             msg = "Cannot change namespace; delete and recreate resource"
             raise ValueError(msg)
 
+        namespace_name = await self._resolve_namespace_name()
         spec_type, spec = await self._get_spec_info()
-        await self._apply_kubernetes_resources(spec_type, spec)
 
-        return self._build_outputs(spec, ready=True)
+        await self._apply_kubernetes_resources(namespace_name, spec_type, spec)
+
+        return self._build_outputs(namespace_name, spec, ready=True)
 
     async def on_delete(self) -> None:
         """Delete Kubernetes Deployment + Service.
@@ -465,10 +509,12 @@ class Runner(Resource[RunnerConfig, RunnerOutputs]):
         Explicitly deletes child Kubernetes resources. Once cascade delete
         via owner_references is implemented, this can be simplified.
         """
-        kubernetes_service = self._build_kubernetes_service()
+        namespace_name = await self._resolve_namespace_name()
+
+        kubernetes_service = self._build_kubernetes_service(namespace_name)
         await kubernetes_service.on_delete()
 
-        kubernetes_deployment = self._build_kubernetes_deployment_for_delete()
+        kubernetes_deployment = self._build_kubernetes_deployment_for_delete(namespace_name)
         await kubernetes_deployment.on_delete()
 
     async def health(self) -> HealthStatus:

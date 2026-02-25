@@ -86,6 +86,11 @@ def mock_lightkube_client(mocker: MockerFixture) -> Any:
     )
 
     mocker.patch(
+        "kubernetes_provider.resources.namespace.create_client_from_gke",
+        return_value=mock_client,
+    )
+
+    mocker.patch(
         "kubernetes_provider.resources.statefulset.create_client_from_gke",
         return_value=mock_client,
     )

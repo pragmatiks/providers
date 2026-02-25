@@ -13,6 +13,11 @@ from kubernetes_provider.resources.deployment import (
     DeploymentConfig,
     DeploymentOutputs,
 )
+from kubernetes_provider.resources.namespace import (
+    Namespace,
+    NamespaceConfig,
+    NamespaceOutputs,
+)
 from kubernetes_provider.resources.secret import (
     Secret,
     SecretConfig,
@@ -37,6 +42,9 @@ __all__ = [
     "Deployment",
     "DeploymentConfig",
     "DeploymentOutputs",
+    "Namespace",
+    "NamespaceConfig",
+    "NamespaceOutputs",
     "Secret",
     "SecretConfig",
     "SecretOutputs",

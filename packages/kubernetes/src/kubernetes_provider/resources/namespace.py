@@ -1,0 +1,213 @@
+"""Kubernetes Namespace resource."""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import ClassVar
+
+from gcp_provider import GKE
+from lightkube import ApiError
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.core_v1 import Namespace as K8sNamespace
+from pragma_sdk import Config, Dependency, HealthStatus, LogEntry, Outputs, Resource
+
+from kubernetes_provider.client import create_client_from_gke
+
+
+class NamespaceConfig(Config):
+    """Configuration for a Kubernetes Namespace.
+
+    Namespaces are cluster-scoped resources (no namespace field).
+
+    Attributes:
+        cluster: GKE cluster dependency providing Kubernetes credentials.
+        labels: Optional labels to apply to the namespace.
+    """
+
+    cluster: Dependency[GKE]
+    labels: dict[str, str] | None = None
+
+
+class NamespaceOutputs(Outputs):
+    """Outputs from Kubernetes Namespace creation.
+
+    Attributes:
+        name: Namespace name.
+    """
+
+    name: str
+
+
+class Namespace(Resource[NamespaceConfig, NamespaceOutputs]):
+    """Kubernetes Namespace resource.
+
+    Creates and manages Kubernetes Namespaces using lightkube.
+    Namespaces are cluster-scoped and do not belong to another namespace.
+
+    Lifecycle:
+        - on_create: Apply namespace configuration
+        - on_update: Apply updated namespace configuration
+        - on_delete: Delete the namespace
+    """
+
+    provider: ClassVar[str] = "kubernetes"
+    resource: ClassVar[str] = "namespace"
+
+    async def _get_client(self):
+        """Get lightkube client from GKE cluster credentials.
+
+        Returns:
+            Lightkube async client configured for the GKE cluster.
+
+        Raises:
+            RuntimeError: If GKE cluster outputs are not available.
+        """
+        cluster = await self.config.cluster.resolve()
+        outputs = cluster.outputs
+
+        if outputs is None:
+            msg = "GKE cluster outputs not available"
+            raise RuntimeError(msg)
+
+        creds = cluster.config.credentials
+
+        return create_client_from_gke(outputs, creds)
+
+    def _build_namespace(self) -> K8sNamespace:
+        """Build Kubernetes Namespace object from config.
+
+        Returns:
+            Kubernetes Namespace object ready to apply.
+        """
+        return K8sNamespace(
+            metadata=ObjectMeta(
+                name=self.name,
+                labels=self.config.labels,
+            ),
+        )
+
+    def _build_outputs(self) -> NamespaceOutputs:
+        """Build outputs.
+
+        Returns:
+            NamespaceOutputs with namespace name.
+        """
+        return NamespaceOutputs(name=self.name)
+
+    async def on_create(self) -> NamespaceOutputs:
+        """Create or update Kubernetes Namespace.
+
+        Idempotent: Uses apply() which handles both create and update.
+
+        Returns:
+            NamespaceOutputs with namespace name.
+        """
+        client = await self._get_client()
+        namespace = self._build_namespace()
+
+        await client.apply(namespace, field_manager="pragma-kubernetes")
+
+        return self._build_outputs()
+
+    async def on_update(self, previous_config: NamespaceConfig) -> NamespaceOutputs:
+        """Update Kubernetes Namespace.
+
+        Args:
+            previous_config: The previous configuration before update.
+
+        Returns:
+            NamespaceOutputs with namespace name.
+
+        Raises:
+            ValueError: If immutable fields changed.
+        """
+        if previous_config.cluster.id != self.config.cluster.id:
+            msg = "Cannot change cluster; delete and recreate resource"
+            raise ValueError(msg)
+
+        client = await self._get_client()
+        namespace = self._build_namespace()
+
+        await client.apply(namespace, field_manager="pragma-kubernetes")
+
+        return self._build_outputs()
+
+    async def on_delete(self) -> None:
+        """Delete Kubernetes Namespace.
+
+        Idempotent: Succeeds if namespace doesn't exist.
+
+        Raises:
+            ApiError: If deletion fails for reasons other than not found.
+        """
+        client = await self._get_client()
+
+        try:
+            await client.delete(K8sNamespace, name=self.name)
+        except ApiError as e:
+            if e.status.code != 404:
+                raise
+
+    async def health(self) -> HealthStatus:
+        """Check Namespace health by verifying it exists and is active.
+
+        Returns:
+            HealthStatus indicating healthy/degraded/unhealthy.
+
+        Raises:
+            ApiError: If health check fails for reasons other than not found.
+        """
+        client = await self._get_client()
+
+        try:
+            ns = await client.get(K8sNamespace, name=self.name)
+
+            phase = None
+
+            if ns.status and ns.status.phase:
+                phase = ns.status.phase
+
+            if phase == "Active":
+                return HealthStatus(
+                    status="healthy",
+                    message=f"Namespace {self.name} is active",
+                    details={"phase": phase},
+                )
+
+            return HealthStatus(
+                status="degraded",
+                message=f"Namespace {self.name} phase: {phase}",
+                details={"phase": phase},
+            )
+
+        except ApiError as e:
+            if e.status.code == 404:
+                return HealthStatus(
+                    status="unhealthy",
+                    message="Namespace not found",
+                )
+            raise
+
+    async def logs(
+        self,
+        since: datetime | None = None,
+        tail: int = 100,
+    ) -> AsyncIterator[LogEntry]:
+        """Namespaces do not produce logs.
+
+        This method exists for interface compatibility but yields nothing.
+
+        Args:
+            since: Ignored for namespaces.
+            tail: Ignored for namespaces.
+
+        Yields:
+            Nothing - namespaces don't have logs.
+        """
+        yield LogEntry(
+            timestamp=datetime.now(UTC),
+            level="info",
+            message="Namespaces do not produce logs",
+        )
+        return
