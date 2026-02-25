@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import ClassVar, Literal
 
@@ -87,10 +88,11 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
     provider: ClassVar[str] = "kubernetes"
     resource: ClassVar[str] = "service"
 
+    @asynccontextmanager
     async def _get_client(self):
         """Get lightkube client from GKE cluster credentials.
 
-        Returns:
+        Yields:
             Lightkube async client configured for the GKE cluster.
 
         Raises:
@@ -104,8 +106,12 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
             raise RuntimeError(msg)
 
         creds = cluster.config.credentials
+        client = create_client_from_gke(outputs, creds)
 
-        return create_client_from_gke(outputs, creds)
+        try:
+            yield client
+        finally:
+            await client.close()
 
     def _build_service(self) -> K8sService:
         """Build Kubernetes Service object from config.
@@ -174,18 +180,18 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
         Returns:
             ServiceOutputs with service details.
         """
-        client = await self._get_client()
-        service = self._build_service()
+        async with self._get_client() as client:
+            service = self._build_service()
 
-        await client.apply(service, field_manager="pragma-kubernetes")
+            await client.apply(service, field_manager="pragma-kubernetes")
 
-        result = await client.get(
-            K8sService,
-            name=self.name,
-            namespace=self.config.namespace,
-        )
+            result = await client.get(
+                K8sService,
+                name=self.name,
+                namespace=self.config.namespace,
+            )
 
-        return self._build_outputs(result)
+            return self._build_outputs(result)
 
     async def on_update(self, previous_config: ServiceConfig) -> ServiceOutputs:
         """Update Kubernetes Service.
@@ -207,18 +213,18 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
             msg = "Cannot change namespace; delete and recreate resource"
             raise ValueError(msg)
 
-        client = await self._get_client()
-        service = self._build_service()
+        async with self._get_client() as client:
+            service = self._build_service()
 
-        await client.apply(service, field_manager="pragma-kubernetes")
+            await client.apply(service, field_manager="pragma-kubernetes")
 
-        result = await client.get(
-            K8sService,
-            name=self.name,
-            namespace=self.config.namespace,
-        )
+            result = await client.get(
+                K8sService,
+                name=self.name,
+                namespace=self.config.namespace,
+            )
 
-        return self._build_outputs(result)
+            return self._build_outputs(result)
 
     async def on_delete(self) -> None:
         """Delete Kubernetes Service.
@@ -228,17 +234,16 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
         Raises:
             ApiError: If deletion fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            await client.delete(
-                K8sService,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-        except ApiError as e:
-            if e.status.code != 404:
-                raise
+        async with self._get_client() as client:
+            try:
+                await client.delete(
+                    K8sService,
+                    name=self.name,
+                    namespace=self.config.namespace,
+                )
+            except ApiError as e:
+                if e.status.code != 404:
+                    raise
 
     async def health(self) -> HealthStatus:
         """Check Service health by verifying existence and endpoints.
@@ -249,57 +254,56 @@ class Service(Resource[ServiceConfig, ServiceOutputs]):
         Raises:
             ApiError: If health check fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            await client.get(
-                K8sService,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-        except ApiError as e:
-            if e.status.code == 404:
-                return HealthStatus(
-                    status="unhealthy",
-                    message="Service not found",
+        async with self._get_client() as client:
+            try:
+                await client.get(
+                    K8sService,
+                    name=self.name,
+                    namespace=self.config.namespace,
                 )
-            raise
+            except ApiError as e:
+                if e.status.code == 404:
+                    return HealthStatus(
+                        status="unhealthy",
+                        message="Service not found",
+                    )
+                raise
 
-        try:
-            endpoints = await client.get(
-                Endpoints,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-
-            has_endpoints = False
-            endpoint_count = 0
-
-            if endpoints.subsets:
-                for subset in endpoints.subsets:
-                    if subset.addresses:
-                        has_endpoints = True
-                        endpoint_count += len(subset.addresses)
-
-            if has_endpoints:
-                return HealthStatus(
-                    status="healthy",
-                    message=f"Service has {endpoint_count} endpoint(s)",
-                    details={"endpoint_count": endpoint_count},
+            try:
+                endpoints = await client.get(
+                    Endpoints,
+                    name=self.name,
+                    namespace=self.config.namespace,
                 )
 
-            return HealthStatus(
-                status="degraded",
-                message="Service exists but has no endpoints",
-            )
+                has_endpoints = False
+                endpoint_count = 0
 
-        except ApiError as e:
-            if e.status.code == 404:
+                if endpoints.subsets:
+                    for subset in endpoints.subsets:
+                        if subset.addresses:
+                            has_endpoints = True
+                            endpoint_count += len(subset.addresses)
+
+                if has_endpoints:
+                    return HealthStatus(
+                        status="healthy",
+                        message=f"Service has {endpoint_count} endpoint(s)",
+                        details={"endpoint_count": endpoint_count},
+                    )
+
                 return HealthStatus(
                     status="degraded",
-                    message="Service exists but endpoints not found",
+                    message="Service exists but has no endpoints",
                 )
-            raise
+
+            except ApiError as e:
+                if e.status.code == 404:
+                    return HealthStatus(
+                        status="degraded",
+                        message="Service exists but endpoints not found",
+                    )
+                raise
 
     async def logs(
         self,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import ClassVar, Literal
 
@@ -172,10 +173,11 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
     provider: ClassVar[str] = "kubernetes"
     resource: ClassVar[str] = "statefulset"
 
+    @asynccontextmanager
     async def _get_client(self):
         """Get lightkube client from GKE cluster credentials.
 
-        Returns:
+        Yields:
             Lightkube async client configured for the GKE cluster.
 
         Raises:
@@ -189,8 +191,12 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
             raise RuntimeError(msg)
 
         creds = cluster.config.credentials
+        client = create_client_from_gke(outputs, creds)
 
-        return create_client_from_gke(outputs, creds)
+        try:
+            yield client
+        finally:
+            await client.close()
 
     def _build_probe(self, config: ProbeConfig) -> Probe | None:
         """Build probe from config.
@@ -376,14 +382,14 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         Returns:
             StatefulSetOutputs with statefulset details.
         """
-        client = await self._get_client()
-        sts = self._build_statefulset()
+        async with self._get_client() as client:
+            sts = self._build_statefulset()
 
-        await client.apply(sts, field_manager="pragma-kubernetes")
+            await client.apply(sts, field_manager="pragma-kubernetes")
 
-        result = await self._wait_for_ready(client)
+            result = await self._wait_for_ready(client)
 
-        return self._build_outputs(result)
+            return self._build_outputs(result)
 
     async def on_update(self, previous_config: StatefulSetConfig) -> StatefulSetOutputs:
         """Update Kubernetes StatefulSet and wait for ready.
@@ -409,14 +415,14 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
             msg = "Cannot change service_name; delete and recreate resource"
             raise ValueError(msg)
 
-        client = await self._get_client()
-        sts = self._build_statefulset()
+        async with self._get_client() as client:
+            sts = self._build_statefulset()
 
-        await client.apply(sts, field_manager="pragma-kubernetes")
+            await client.apply(sts, field_manager="pragma-kubernetes")
 
-        result = await self._wait_for_ready(client)
+            result = await self._wait_for_ready(client)
 
-        return self._build_outputs(result)
+            return self._build_outputs(result)
 
     async def on_delete(self) -> None:
         """Delete Kubernetes StatefulSet with cascade.
@@ -426,18 +432,17 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         Raises:
             ApiError: If deletion fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            await client.delete(
-                K8sStatefulSet,
-                name=self.name,
-                namespace=self.config.namespace,
-                cascade=CascadeType.BACKGROUND,
-            )
-        except ApiError as e:
-            if e.status.code != 404:
-                raise
+        async with self._get_client() as client:
+            try:
+                await client.delete(
+                    K8sStatefulSet,
+                    name=self.name,
+                    namespace=self.config.namespace,
+                    cascade=CascadeType.BACKGROUND,
+                )
+            except ApiError as e:
+                if e.status.code != 404:
+                    raise
 
     async def health(self) -> HealthStatus:
         """Check StatefulSet health by comparing ready replicas to desired.
@@ -448,47 +453,47 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         Raises:
             ApiError: If health check fails for reasons other than not found.
         """
-        client = await self._get_client()
-
-        try:
-            sts = await client.get(
-                K8sStatefulSet,
-                name=self.name,
-                namespace=self.config.namespace,
-            )
-        except ApiError as e:
-            if e.status.code == 404:
-                return HealthStatus(
-                    status="unhealthy",
-                    message="StatefulSet not found",
+        async with self._get_client() as client:
+            try:
+                sts = await client.get(
+                    K8sStatefulSet,
+                    name=self.name,
+                    namespace=self.config.namespace,
                 )
-            raise
+            except ApiError as e:
+                if e.status.code == 404:
+                    return HealthStatus(
+                        status="unhealthy",
+                        message="StatefulSet not found",
+                    )
+                raise
 
-        ready = 0
-        if sts.status and sts.status.readyReplicas:
-            ready = sts.status.readyReplicas
+            ready = 0
 
-        desired = sts.spec.replicas or 0
+            if sts.status and sts.status.readyReplicas:
+                ready = sts.status.readyReplicas
 
-        if ready >= desired and desired > 0:
+            desired = sts.spec.replicas or 0
+
+            if ready >= desired and desired > 0:
+                return HealthStatus(
+                    status="healthy",
+                    message=f"All {ready} replicas ready",
+                    details={"ready_replicas": ready, "desired_replicas": desired},
+                )
+
+            if ready > 0:
+                return HealthStatus(
+                    status="degraded",
+                    message=f"{ready}/{desired} replicas ready",
+                    details={"ready_replicas": ready, "desired_replicas": desired},
+                )
+
             return HealthStatus(
-                status="healthy",
-                message=f"All {ready} replicas ready",
-                details={"ready_replicas": ready, "desired_replicas": desired},
+                status="unhealthy",
+                message=f"No replicas ready (desired: {desired})",
+                details={"ready_replicas": 0, "desired_replicas": desired},
             )
-
-        if ready > 0:
-            return HealthStatus(
-                status="degraded",
-                message=f"{ready}/{desired} replicas ready",
-                details={"ready_replicas": ready, "desired_replicas": desired},
-            )
-
-        return HealthStatus(
-            status="unhealthy",
-            message=f"No replicas ready (desired: {desired})",
-            details={"ready_replicas": 0, "desired_replicas": desired},
-        )
 
     async def logs(
         self,
@@ -504,48 +509,49 @@ class StatefulSet(Resource[StatefulSetConfig, StatefulSetOutputs]):
         Yields:
             LogEntry for each log line from pods.
         """
-        client = await self._get_client()
-        labels = self.config.selector or {"app": self.name}
-        label_selector = ",".join(f"{k}={v}" for k, v in labels.items())
+        async with self._get_client() as client:
+            labels = self.config.selector or {"app": self.name}
+            label_selector = ",".join(f"{k}={v}" for k, v in labels.items())
 
-        pods = client.list(
-            Pod,
-            namespace=self.config.namespace,
-            labels=label_selector,
-        )
+            pods = client.list(
+                Pod,
+                namespace=self.config.namespace,
+                labels=label_selector,
+            )
 
-        async for pod in pods:
-            pod_name = pod.metadata.name
+            async for pod in pods:
+                pod_name = pod.metadata.name
 
-            try:
-                since_seconds = None
-                if since:
-                    delta = datetime.now(UTC) - since
-                    since_seconds = max(1, int(delta.total_seconds()))
+                try:
+                    since_seconds = None
 
-                log_lines = await client.request(
-                    "GET",
-                    f"/api/v1/namespaces/{self.config.namespace}/pods/{pod_name}/log",
-                    params={
-                        "tailLines": tail,
-                        **({"sinceSeconds": since_seconds} if since_seconds else {}),
-                    },
-                    response_type=str,
-                )
+                    if since:
+                        delta = datetime.now(UTC) - since
+                        since_seconds = max(1, int(delta.total_seconds()))
 
-                for line in log_lines.strip().split("\n"):
-                    if line:
-                        yield LogEntry(
-                            timestamp=datetime.now(UTC),
-                            level="info",
-                            message=line,
-                            metadata={"pod": pod_name},
-                        )
+                    log_lines = await client.request(
+                        "GET",
+                        f"/api/v1/namespaces/{self.config.namespace}/pods/{pod_name}/log",
+                        params={
+                            "tailLines": tail,
+                            **({"sinceSeconds": since_seconds} if since_seconds else {}),
+                        },
+                        response_type=str,
+                    )
 
-            except ApiError:
-                yield LogEntry(
-                    timestamp=datetime.now(UTC),
-                    level="warn",
-                    message=f"Failed to fetch logs from pod {pod_name}",
-                    metadata={"pod": pod_name},
-                )
+                    for line in log_lines.strip().split("\n"):
+                        if line:
+                            yield LogEntry(
+                                timestamp=datetime.now(UTC),
+                                level="info",
+                                message=line,
+                                metadata={"pod": pod_name},
+                            )
+
+                except ApiError:
+                    yield LogEntry(
+                        timestamp=datetime.now(UTC),
+                        level="warn",
+                        message=f"Failed to fetch logs from pod {pod_name}",
+                        metadata={"pod": pod_name},
+                    )

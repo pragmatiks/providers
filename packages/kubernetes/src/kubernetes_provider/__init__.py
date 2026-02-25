@@ -14,6 +14,9 @@ from kubernetes_provider.resources import (
     Deployment,
     DeploymentConfig,
     DeploymentOutputs,
+    Namespace,
+    NamespaceConfig,
+    NamespaceOutputs,
     Secret,
     SecretConfig,
     SecretOutputs,
@@ -33,6 +36,7 @@ kubernetes.resource("service")(Service)
 kubernetes.resource("configmap")(ConfigMap)
 kubernetes.resource("secret")(Secret)
 kubernetes.resource("statefulset")(StatefulSet)
+kubernetes.resource("namespace")(Namespace)
 
 __all__ = [
     "kubernetes",
@@ -43,6 +47,9 @@ __all__ = [
     "Deployment",
     "DeploymentConfig",
     "DeploymentOutputs",
+    "Namespace",
+    "NamespaceConfig",
+    "NamespaceOutputs",
     "Secret",
     "SecretConfig",
     "SecretOutputs",

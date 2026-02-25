@@ -69,6 +69,7 @@ def mock_lightkube_client(mocker: MockerFixture) -> Any:
     mock_client.apply = mocker.AsyncMock()
     mock_client.get = mocker.AsyncMock()
     mock_client.delete = mocker.AsyncMock()
+    mock_client.close = mocker.AsyncMock()
 
     mocker.patch(
         "kubernetes_provider.resources.service.create_client_from_gke",
@@ -82,6 +83,11 @@ def mock_lightkube_client(mocker: MockerFixture) -> Any:
 
     mocker.patch(
         "kubernetes_provider.resources.secret.create_client_from_gke",
+        return_value=mock_client,
+    )
+
+    mocker.patch(
+        "kubernetes_provider.resources.namespace.create_client_from_gke",
         return_value=mock_client,
     )
 

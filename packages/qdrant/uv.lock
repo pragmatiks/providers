@@ -704,7 +704,7 @@ wheels = [
 
 [[package]]
 name = "pragmatiks-qdrant-provider"
-version = "0.10.0"
+version = "0.16.0"
 source = { editable = "." }
 dependencies = [
     { name = "pragmatiks-kubernetes-provider" },
