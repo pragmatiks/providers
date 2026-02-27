@@ -141,7 +141,7 @@ jobs:
         if: steps.bump.outputs.gcp_version != ''
         continue-on-error: true
         env:
-          PRAGMA_AUTH_TOKEN: ${{ secrets.PRAGMA_CI_CLERK_TOKEN }}
+          PRAGMA_AUTH_TOKEN: ${{ secrets.CLERK_SECRET_KEY }}
         run: |
           cd packages/gcp
           uv run pragma providers publish --version "${{ steps.bump.outputs.gcp_version }}" --org pragmatiks
@@ -284,7 +284,7 @@ jobs:
         if: steps.bump.outputs.kubernetes_version != ''
         continue-on-error: true
         env:
-          PRAGMA_AUTH_TOKEN: ${{ secrets.PRAGMA_CI_CLERK_TOKEN }}
+          PRAGMA_AUTH_TOKEN: ${{ secrets.CLERK_SECRET_KEY }}
         run: |
           cd packages/kubernetes
           uv run pragma providers publish --version "${{ steps.bump.outputs.kubernetes_version }}" --org pragmatiks
@@ -293,7 +293,7 @@ jobs:
         if: steps.bump.outputs.qdrant_version != ''
         continue-on-error: true
         env:
-          PRAGMA_AUTH_TOKEN: ${{ secrets.PRAGMA_CI_CLERK_TOKEN }}
+          PRAGMA_AUTH_TOKEN: ${{ secrets.CLERK_SECRET_KEY }}
         run: |
           cd packages/qdrant
           uv run pragma providers publish --version "${{ steps.bump.outputs.qdrant_version }}" --org pragmatiks
@@ -427,7 +427,7 @@ jobs:
         if: steps.bump.outputs.agno_version != ''
         continue-on-error: true
         env:
-          PRAGMA_AUTH_TOKEN: ${{ secrets.PRAGMA_CI_CLERK_TOKEN }}
+          PRAGMA_AUTH_TOKEN: ${{ secrets.CLERK_SECRET_KEY }}
         run: |
           cd packages/agno
           uv run pragma providers publish --version "${{ steps.bump.outputs.agno_version }}" --org pragmatiks
