@@ -162,6 +162,25 @@ jobs:
           packages-dir: dist/
           skip-existing: true
 
+      - name: Publish to pragma store
+        env:
+          PRAGMA_API_URL: https://api.pragmatiks.io
+          PRAGMA_CLERK_TOKEN: ${{ secrets.PRAGMA_CI_CLERK_TOKEN }}
+        run: |
+          if [ -n "${{ steps.bump.outputs.gcp_version }}" ]; then
+            echo "Publishing gcp v${{ steps.bump.outputs.gcp_version }} to pragma store..."
+            cd packages/gcp
+            uv run pragma providers publish --version ${{ steps.bump.outputs.gcp_version }}
+            cd ../..
+          fi
+
+          if [ -n "${{ steps.bump.outputs.qdrant_version }}" ]; then
+            echo "Publishing qdrant v${{ steps.bump.outputs.qdrant_version }} to pragma store..."
+            cd packages/qdrant
+            uv run pragma providers publish --version ${{ steps.bump.outputs.qdrant_version }}
+            cd ../..
+          fi
+
   # Tier 2: Providers that depend on tier 1
   publish-tier-2:
     needs: [detect-changes, publish-tier-1]
@@ -271,6 +290,16 @@ jobs:
         with:
           packages-dir: dist/
           skip-existing: true
+
+      - name: Publish to pragma store
+        if: steps.bump.outputs.kubernetes_version != ''
+        env:
+          PRAGMA_API_URL: https://api.pragmatiks.io
+          PRAGMA_CLERK_TOKEN: ${{ secrets.PRAGMA_CI_CLERK_TOKEN }}
+        run: |
+          echo "Publishing kubernetes v${{ steps.bump.outputs.kubernetes_version }} to pragma store..."
+          cd packages/kubernetes
+          uv run pragma providers publish --version ${{ steps.bump.outputs.kubernetes_version }}
 
   # Tier 3: Providers that depend on tier 2
   publish-tier-3:
@@ -391,3 +420,13 @@ jobs:
         with:
           packages-dir: dist/
           skip-existing: true
+
+      - name: Publish to pragma store
+        if: steps.bump.outputs.agno_version != ''
+        env:
+          PRAGMA_API_URL: https://api.pragmatiks.io
+          PRAGMA_CLERK_TOKEN: ${{ secrets.PRAGMA_CI_CLERK_TOKEN }}
+        run: |
+          echo "Publishing agno v${{ steps.bump.outputs.agno_version }} to pragma store..."
+          cd packages/agno
+          uv run pragma providers publish --version ${{ steps.bump.outputs.agno_version }}
